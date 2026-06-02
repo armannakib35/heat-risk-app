@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const HeatRiskApp());
@@ -11,16 +11,11 @@ void main() {
 
 class HeatRiskApp extends StatelessWidget {
   const HeatRiskApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'AI Heat Risk Warning',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.deepOrange,
-      ),
       home: const HeatRiskHome(),
     );
   }
@@ -33,595 +28,298 @@ class StreetRisk {
   final String roadType;
   final String surface;
   final List<Map<String, dynamic>> forecasts;
-
-  StreetRisk({
-    required this.name,
-    required this.lat,
-    required this.lon,
-    required this.roadType,
-    required this.surface,
-    required this.forecasts,
-  });
+  StreetRisk({required this.name, required this.lat, required this.lon, required this.roadType, required this.surface, required this.forecasts});
 }
 
 class HeatRiskHome extends StatefulWidget {
   const HeatRiskHome({super.key});
-
   @override
   State<HeatRiskHome> createState() => _HeatRiskHomeState();
 }
 
 class _HeatRiskHomeState extends State<HeatRiskHome> {
-  bool loading = false;
-  String status = 'Tap the button to check your heat risk.';
-  String placeName = 'Location not checked yet.';
   double? userLat;
   double? userLon;
+  String placeName = '';
   int forecastIndex = 0;
   List<StreetRisk> streets = [];
+  bool loading = false;
+  List<String> forecastNames = [];
+  final MapController mapController = MapController();
 
-  final List<String> forecastNames = ['Now', '+2 Hours', '+6 Hours'];
+  @override
+  void initState() {
+    super.initState();
+    _getCurrentLocation();
+  }
 
-  Future<void> checkRisk() async {
-    setState(() {
-      loading = true;
-      status = 'Getting GPS location...';
-      streets = [];
-    });
-
+  Future<void> _getCurrentLocation() async {
+    setState(() { loading = true; });
     try {
-      final position = await _getPosition();
-
-      userLat = position.latitude;
-      userLon = position.longitude;
-
-      setState(() {
-        status = 'Loading real place, streets, and weather...';
-      });
-
-      final place = await fetchPlaceName(userLat!, userLon!);
-      final weather = await fetchWeather(userLat!, userLon!);
-      final realStreets = await fetchNearbyStreets(userLat!, userLon!);
-
-      final List<StreetRisk> result = [];
-
-      for (final street in realStreets) {
-        final surface = highwayToSurface(street['highway']);
-        final surfaceScore = getSurfaceScore(surface);
-
-        final forecasts = <Map<String, dynamic>>[];
-
-        for (final item in [
-          {'label': 'Now', 'index': 0},
-          {'label': '+2 Hours', 'index': 2},
-          {'label': '+6 Hours', 'index': 6},
-        ]) {
-          final i = item['index'] as int;
-
-          final temp = weather['temperature'][i];
-          final humidity = weather['humidity'][i];
-          final apparentTemp = weather['apparent_temperature'][i];
-
-          final risk = calculateRisk(
-            temp.toDouble(),
-            humidity.toDouble(),
-            apparentTemp.toDouble(),
-            surfaceScore,
-          );
-
-          forecasts.add({
-            'forecast': item['label'],
-            'time': weather['time'][i],
-            'temperature': temp,
-            'humidity': humidity,
-            'apparent_temperature': apparentTemp,
-            'risk_score': risk['score'],
-            'level': risk['level'],
-            'advice': risk['advice'],
-          });
-        }
-
-        result.add(
-          StreetRisk(
-            name: street['name'],
-            lat: street['lat'],
-            lon: street['lon'],
-            roadType: street['highway'],
-            surface: surface,
-            forecasts: forecasts,
-          ),
-        );
-      }
-
-      setState(() {
-        placeName = place;
-        streets = result;
-        status = 'Loaded ${streets.length} real nearby streets.';
-        loading = false;
-      });
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      userLat = pos.latitude;
+      userLon = pos.longitude;
+      await _fetchPlace();
+      await _fetchStreetsAndWeather();
     } catch (e) {
-      setState(() {
-        loading = false;
-        status = 'Error: $e';
-      });
+      placeName = "Location unavailable";
+    }
+    setState(() { loading = false; });
+  }
+
+  Future<void> _fetchPlace() async {
+    if (userLat == null || userLon == null) return;
+    final url = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=$userLat&lon=$userLon&zoom=18&addressdetails=1&accept-language=en');
+    final res = await http.get(url, headers: {'User-Agent':'AI-Heat-Risk-Demo/1.0'});
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      placeName = data['display_name'] ?? '';
+    } else {
+      placeName = '';
     }
   }
 
-  Future<Position> _getPosition() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-
-    if (!serviceEnabled) {
-      throw Exception('Location service is disabled.');
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      throw Exception('Location permission permanently denied.');
-    }
-
-    if (permission == LocationPermission.denied) {
-      throw Exception('Location permission denied.');
-    }
-
-    return Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-  }
-
-  Future<String> fetchPlaceName(double lat, double lon) async {
-    final uri = Uri.parse(
-      'https://nominatim.openstreetmap.org/reverse'
-      '?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1&accept-language=en',
-    );
-
-    final response = await http.get(
-      uri,
-      headers: {'User-Agent': 'AI-Heat-Risk-Demo/1.0'},
-    );
-
-    if (response.statusCode != 200) {
-      return 'Unknown location';
-    }
-
-    final data = jsonDecode(response.body);
-    return data['display_name'] ?? 'Unknown location';
-  }
-
-  Future<Map<String, dynamic>> fetchWeather(double lat, double lon) async {
-    final uri = Uri.parse(
-      'https://api.open-meteo.com/v1/forecast'
-      '?latitude=$lat&longitude=$lon'
-      '&hourly=temperature_2m,relative_humidity_2m,apparent_temperature'
-      '&forecast_days=1&timezone=auto',
-    );
-
-    final response = await http.get(uri);
-
-    if (response.statusCode != 200) {
-      throw Exception('Weather API failed.');
-    }
-
-    final data = jsonDecode(response.body);
-
-    return {
-      'time': data['hourly']['time'],
-      'temperature': data['hourly']['temperature_2m'],
-      'humidity': data['hourly']['relative_humidity_2m'],
-      'apparent_temperature': data['hourly']['apparent_temperature'],
-    };
-  }
-
-  Future<List<Map<String, dynamic>>> fetchNearbyStreets(
-    double lat,
-    double lon,
-  ) async {
+  Future<void> _fetchStreetsAndWeather() async {
+    if (userLat == null || userLon == null) return;
+    final streetsUrl = Uri.parse('https://overpass-api.de/api/interpreter');
     final query = '''
 [out:json][timeout:25];
-way["highway"](around:900,$lat,$lon);
+way["highway"](around:900,${userLat!},${userLon!});
 out center tags;
 ''';
-
-    final response = await http.post(
-      Uri.parse('https://overpass-api.de/api/interpreter'),
-      headers: {'User-Agent': 'AI-Heat-Risk-Demo/1.0'},
-      body: {'data': query},
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('OpenStreetMap street API failed.');
-    }
-
-    final data = jsonDecode(response.body);
-    final List elements = data['elements'] ?? [];
-
-    final List<Map<String, dynamic>> output = [];
-    final Set<String> seen = {};
-
-    for (final element in elements) {
-      final tags = element['tags'];
-      final center = element['center'];
-
+    final res = await http.post(streetsUrl, headers: {'User-Agent':'AI-Heat-Risk-Demo/1.0'}, body: {'data':query});
+    if (res.statusCode != 200) return;
+    final data = jsonDecode(res.body);
+    List elements = data['elements'] ?? [];
+    streets = [];
+    final seen = <String>{};
+    for (var element in elements) {
+      var tags = element['tags'];
+      var center = element['center'];
       if (tags == null || center == null) continue;
-
-      final highway = tags['highway'] ?? 'road';
-      final name = tags['name:en'] ??
-          tags['name'] ??
-          'Unnamed $highway road';
-
-      final key =
-          '$name-${center['lat'].toStringAsFixed(5)}-${center['lon'].toStringAsFixed(5)}';
-
+      String name = tags['name:en'] ?? tags['name'] ?? 'Unnamed ${tags['highway'] ?? 'road'}';
+      String key = '${name}-${center['lat']}-${center['lon']}';
       if (seen.contains(key)) continue;
       seen.add(key);
-
-      output.add({
-        'name': name,
-        'lat': center['lat'],
-        'lon': center['lon'],
-        'highway': highway,
-      });
-
-      if (output.length >= 20) break;
+      String highway = tags['highway'] ?? 'road';
+      String surface = _highwayToSurface(highway);
+      streets.add(StreetRisk(
+        name: name,
+        lat: center['lat'],
+        lon: center['lon'],
+        roadType: highway,
+        surface: surface,
+        forecasts: [],
+      ));
+      if (streets.length >= 20) break;
     }
-
-    return output;
+    await _fetchWeatherForStreets();
   }
 
-  String highwayToSurface(String highway) {
-    final concrete = [
-      'motorway',
-      'trunk',
-      'primary',
-      'secondary',
-      'tertiary',
-      'unclassified',
-    ];
-
-    final mixed = [
-      'residential',
-      'service',
-      'living_street',
-      'pedestrian',
-      'footway',
-      'cycleway',
-    ];
-
-    if (concrete.contains(highway)) {
-      return 'Road / Concrete';
-    }
-
-    if (mixed.contains(highway)) {
-      return 'Mixed Area';
-    }
-
+  String _highwayToSurface(String highway) {
+    final concrete = ['motorway','trunk','primary','secondary','tertiary','unclassified'];
+    final mixed = ['residential','service','living_street','pedestrian','footway','cycleway'];
+    if (concrete.contains(highway)) return 'Road / Concrete';
+    if (mixed.contains(highway)) return 'Mixed Area';
     return 'Park / Trees';
   }
 
-  int getSurfaceScore(String surface) {
-    if (surface == 'Road / Concrete') return 30;
-    if (surface == 'Mixed Area') return 18;
-    if (surface == 'Park / Trees') return 6;
+  Future<void> _fetchWeatherForStreets() async {
+    final weatherUrl = Uri.parse('https://api.open-meteo.com/v1/forecast?latitude=$userLat&longitude=$userLon&hourly=temperature_2m,relative_humidity_2m,apparent_temperature&forecast_days=1&timezone=auto');
+    final res = await http.get(weatherUrl);
+    if (res.statusCode != 200) return;
+    final data = jsonDecode(res.body);
+    List times = data['hourly']['time'];
+    List temps = data['hourly']['temperature_2m'];
+    List humidity = data['hourly']['relative_humidity_2m'];
+    List apparent = data['hourly']['apparent_temperature'];
+    forecastNames = [];
+    streets = streets.map((s) {
+      List<Map<String,dynamic>> forecasts = [];
+      for (int i=0;i<times.length;i+=1) { // dynamic next hours
+        forecasts.add(_calcRisk(temps[i].toDouble(), humidity[i].toDouble(), apparent[i].toDouble(), _surfaceScore(s.surface), times[i]));
+        forecastNames.add(times[i].toString().substring(11,16)); // HH:MM
+        if (forecasts.length>=6) break; // next 6 hours
+      }
+      s.forecasts.addAll(forecasts);
+      return s;
+    }).toList();
+    setState(() {});
+  }
+
+  int _surfaceScore(String surface) {
+    if (surface=='Road / Concrete') return 30;
+    if (surface=='Mixed Area') return 18;
+    if (surface=='Park / Trees') return 6;
     return 15;
   }
 
-  Map<String, dynamic> calculateRisk(
-    double temp,
-    double humidity,
-    double apparentTemp,
-    int surfaceScore,
-  ) {
-    final tempScore = ((temp - 24) * 3).clamp(0, 100);
-    final humidityScore = ((humidity - 55) * 0.35).clamp(0, 100);
-    final feelsLikeScore = ((apparentTemp - 27) * 2).clamp(0, 100);
-
-    final score = (tempScore + humidityScore + feelsLikeScore + surfaceScore)
-        .clamp(0, 100)
-        .toInt();
-
-    if (score >= 70) {
-      return {
-        'score': score,
-        'level': 'DANGER',
-        'advice': 'Avoid outdoor exposure and use shaded routes.',
-      };
-    }
-
-    if (score >= 40) {
-      return {
-        'score': score,
-        'level': 'ALERT',
-        'advice': 'Stay hydrated and avoid long outdoor exposure.',
-      };
-    }
-
-    return {
-      'score': score,
-      'level': 'SAFE',
-      'advice': 'Area is safe for outdoor activity.',
-    };
-  }
-
-  Color riskColor(String level) {
-    if (level == 'DANGER') return Colors.red;
-    if (level == 'ALERT') return Colors.orange;
-    return Colors.green;
+  Map<String,dynamic> _calcRisk(double temp,double hum,double apparent,int surfaceScore,String time) {
+    int score = ((temp-24)*3+(hum-55)*0.35+(apparent-27)*2+surfaceScore).clamp(0,100).toInt();
+    String level = score>=70?'DANGER':score>=40?'ALERT':'SAFE';
+    String advice = level=='DANGER'?'Avoid outdoor exposure and use shaded routes.':
+                    level=='ALERT'?'Take precautions, stay hydrated.':'Safe for outdoor activity.';
+    return {'time':time,'temperature':temp,'humidity':hum,'apparent_temperature':apparent,'risk_score':score,'level':level,'advice':advice};
   }
 
   @override
   Widget build(BuildContext context) {
-    final center = LatLng(userLat ?? 23.8103, userLon ?? 90.4125);
-
+    final center = LatLng(userLat ?? 23.8103,userLon ?? 90.4125);
     return Scaffold(
-      backgroundColor: const Color(0xfff4f6f8),
+      backgroundColor: const Color(0xfff0f3f8),
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: checkRisk,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _header(),
-              const SizedBox(height: 14),
-              ElevatedButton.icon(
-                onPressed: loading ? null : checkRisk,
-                icon: const Icon(Icons.my_location),
-                label: Text(loading ? 'Loading...' : 'Check My Heat Risk'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepOrange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.all(15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              _forecastSlider(),
-              const SizedBox(height: 14),
-              _infoCard('Current Location', placeName),
-              const SizedBox(height: 14),
-              _map(center),
-              const SizedBox(height: 18),
-              _agents(),
-              const SizedBox(height: 18),
-              _infoCard('Status', status),
-              const SizedBox(height: 10),
-              ...streets.map(_streetCard),
-            ],
-          ),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Center(child: Text('AI Heat Risk Warning',style: TextStyle(fontSize:26,fontWeight:FontWeight.bold))),
+            Center(child: Text('Live GPS + streets + weather + risk',style:TextStyle(fontSize:14))),
+            const SizedBox(height:12),
+            ElevatedButton(onPressed:loading?null:_getCurrentLocation, child: Text(loading?'Loading...':'Check My Heat Risk')),
+            const SizedBox(height:12),
+            _forecastSlider(),
+            const SizedBox(height:12),
+            _infoCard('Current Location', placeName),
+            const SizedBox(height:12),
+            _map(center),
+            const SizedBox(height:12),
+            _agents(),
+            const SizedBox(height:12),
+            ...streets.map(_streetCard)
+          ],
         ),
       ),
     );
   }
 
-  Widget _header() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Colors.deepOrange, Colors.orangeAccent],
-        ),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'AI Heat Risk Warning',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 25,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 6),
-          Text(
-            'Live GPS + real streets + real weather + heat risk prediction',
-            style: TextStyle(color: Colors.white, fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _forecastSlider()=>Slider(
+    value: forecastIndex.toDouble(),
+    min:0,max:(forecastNames.length-1).toDouble(),
+    divisions: forecastNames.length-1,
+    label: forecastNames[forecastIndex],
+    onChanged:(v){setState(()=>forecastIndex=v.toInt());}
+  );
 
-  Widget _forecastSlider() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _boxDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Forecast Time: ${forecastNames[forecastIndex]}',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          Slider(
-            value: forecastIndex.toDouble(),
-            min: 0,
-            max: 2,
-            divisions: 2,
-            label: forecastNames[forecastIndex],
-            onChanged: (value) {
-              setState(() {
-                forecastIndex = value.toInt();
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _infoCard(String title,String text)=>Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(color: Colors.white,borderRadius: BorderRadius.circular(18),boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.07),blurRadius: 15,offset: Offset(0,6))]),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start,children:[Text(title,style:TextStyle(fontWeight: FontWeight.bold)),Text(text)])
+  );
 
-  Widget _map(LatLng center) {
-    final markers = <CircleMarker>[];
-
-    for (final street in streets) {
-      final forecast = street.forecasts[forecastIndex];
-      final level = forecast['level'];
-
-      markers.add(
-        CircleMarker(
-          point: LatLng(street.lat, street.lon),
-          radius: 16,
-          color: riskColor(level).withOpacity(0.35),
-          borderColor: riskColor(level),
-          borderStrokeWidth: 3,
-        ),
-      );
+  Widget _map(LatLng center){
+    List<CircleMarker> markers=[];
+    for(final s in streets){
+      if(s.forecasts.length>forecastIndex){
+        final f=s.forecasts[forecastIndex];
+        Color c=f['level']=='DANGER'?Colors.red:f['level']=='ALERT'?Colors.orange:Colors.green;
+        markers.add(CircleMarker(point:LatLng(s.lat,s.lon),radius:16,color:c.withOpacity(0.35),borderColor:c,borderStrokeWidth:3));
+      }
     }
-
     return Container(
-      height: 380,
-      decoration: _boxDecoration(),
-      clipBehavior: Clip.antiAlias,
+      height:380,
+      decoration:BoxDecoration(borderRadius: BorderRadius.circular(18),boxShadow:[BoxShadow(color:Colors.black.withOpacity(0.07),blurRadius:12,offset:Offset(0,4))]),
       child: FlutterMap(
-        options: MapOptions(
-          initialCenter: center,
-          initialZoom: 15,
-        ),
+        mapController: mapController,
+        options: MapOptions(center:center,zoom:15),
         children: [
-          TileLayer(
-            urlTemplate:
-                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.example.heat_risk_app',
-          ),
-          MarkerLayer(
-            markers: [
-              Marker(
-                point: center,
-                width: 42,
-                height: 42,
-                child: const Icon(
-                  Icons.location_pin,
-                  color: Colors.blue,
-                  size: 42,
-                ),
-              ),
-            ],
-          ),
-          CircleLayer(circles: markers),
+          TileLayer(urlTemplate:'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+          CircleLayer(circles:markers)
         ],
       ),
     );
   }
 
-  Widget _agents() {
-    final agents = [
-      ['Heat Sensor Agent', 'Fetching Open-Meteo weather'],
-      ['Surface Scanner Agent', 'Reading OpenStreetMap roads'],
-      ['People Tracker Agent', 'Estimating exposure zone'],
-      ['Risk Calculator Agent', 'Calculating danger score'],
-      ['Alert Agent', 'Preparing safety advice'],
-      ['Self-Learning Agent', 'Ready for future data'],
-    ];
+  Widget _agents()=>GridView.count(crossAxisCount:2,shrinkWrap:true,physics:NeverScrollableScrollPhysics(),childAspectRatio:1.7,children:[
+    'Heat Sensor','Surface Scanner','People Tracker','Risk Calculator','Alert','Self Learning'
+  ].map((name)=>Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(color: Colors.white,borderRadius: BorderRadius.circular(18),boxShadow:[BoxShadow(color: Colors.black.withOpacity(0.07),blurRadius:12,offset:Offset(0,6))]),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start,children:[Text(name,style: TextStyle(fontWeight: FontWeight.bold)),Text('Active',style: TextStyle(fontSize:12))])
+  )).toList()).toList();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'AI Agent System',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 10),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 1.65,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          children: agents.map((a) {
-            return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: _boxDecoration(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.smart_toy, color: Colors.deepOrange),
-                  const Spacer(),
-                  Text(
-                    a[0],
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    a[1],
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _streetCard(StreetRisk street) {
-    final f = street.forecasts[forecastIndex];
-    final level = f['level'];
-    final color = riskColor(level);
-
+  Widget _streetCard(StreetRisk s){
+    if(s.forecasts.length<=forecastIndex) return SizedBox.shrink();
+    final f=s.forecasts[forecastIndex];
+    Color c=f['level']=='DANGER'?Colors.red:f['level']=='ALERT'?Colors.orange:Colors.green;
     return Container(
-      margin: const EdgeInsets.only(top: 12),
+      margin: const EdgeInsets.only(top:12),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(18),
-        border: Border(left: BorderSide(color: color, width: 6)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${street.name}: $level',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text('Road Type: ${street.roadType}'),
-          Text('Surface: ${street.surface}'),
-          Text('Forecast: ${f['forecast']}'),
-          Text('Time: ${f['time']}'),
-          Text('Temperature: ${f['temperature']} °C'),
-          Text('Humidity: ${f['humidity']}%'),
-          Text('Feels Like: ${f['apparent_temperature']} °C'),
-          Text('Risk Score: ${f['risk_score']}/100'),
-          const SizedBox(height: 8),
-          Text(f['advice']),
-        ],
-      ),
+      decoration: BoxDecoration(color:c.withOpacity(0.1),borderRadius: BorderRadius.circular(18),border:Border(left:BorderSide(color:c,width:6))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start,children:[
+        Text('${s.name}: ${f['level']}',style:TextStyle(fontSize:18,fontWeight: FontWeight.bold)),
+        Text('Road Type: ${s.roadType}'),
+        Text('Surface: ${s.surface}'),
+        Text('Forecast: ${f['forecast']}'),
+        Text('Time: ${f['time']}'),
+        Text('Temp: ${f['temperature']} °C | Humidity: ${f['humidity']}% | Feels Like: ${f['apparent_temperature']}°C'),
+        Text('Risk Score: ${f['risk_score']}/100'),
+        Text(f['advice'])
+      ]),
     );
   }
 
-  Widget _infoCard(String title, String text) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _boxDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 5),
-          Text(text),
-        ],
-      ),
-    );
+  Future<void> _getCurrentLocation() async {
+    setState(()=>loading=true);
+    try{
+      final pos=await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      userLat=pos.latitude;
+      userLon=pos.longitude;
+      await _fetchPlace();
+      await _fetchStreetsAndWeather();
+    }catch(e){placeName='Location unavailable';}
+    setState(()=>loading=false);
   }
 
-  BoxDecoration _boxDecoration() {
-    return BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.07),
-          blurRadius: 15,
-          offset: const Offset(0, 6),
-        ),
-      ],
-    );
+  Future<void> _fetchPlace() async {
+    if(userLat==null||userLon==null) return;
+    final url=Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=$userLat&lon=$userLon&zoom=18&addressdetails=1&accept-language=en');
+    final res=await http.get(url,headers:{'User-Agent':'AI-Heat-Risk-Demo/1.0'});
+    if(res.statusCode==200){final data=jsonDecode(res.body);placeName=data['display_name']??'';}
+    else placeName='';
+  }
+
+  Future<void> _fetchStreetsAndWeather() async {
+    if(userLat==null||userLon==null) return;
+    await _fetchStreets();
+    await _fetchWeatherForStreets();
+  }
+
+  Future<void> _fetchStreets() async {
+    final url=Uri.parse('https://overpass-api.de/api/interpreter');
+    final query='''[out:json][timeout:25];way["highway"](around:900,$userLat,$userLon);out center tags;''';
+    final res=await http.post(url,headers:{'User-Agent':'AI-Heat-Risk-Demo/1.0'},body:{'data':query});
+    if(res.statusCode!=200) return;
+    final data=jsonDecode(res.body);
+    List elements=data['elements']??[];
+    streets=[];
+    final seen=<String>{};
+    for(var e in elements){
+      var tags=e['tags']; var center=e['center'];
+      if(tags==null||center==null) continue;
+      String name=tags['name:en']??tags['name']??'Unnamed ${tags['highway']??'road'}';
+      String key='$name-${center['lat']}-${center['lon']}';
+      if(seen.contains(key)) continue; seen.add(key);
+      streets.add(StreetRisk(name:name,lat:center['lat'],lon:center['lon'],roadType:tags['highway'],surface:_highwayToSurface(tags['highway']),forecasts:[]));
+      if(streets.length>=20) break;
+    }
+  }
+
+  Future<void> _fetchWeatherForStreets() async {
+    final url=Uri.parse('https://api.open-meteo.com/v1/forecast?latitude=$userLat&longitude=$userLon&hourly=temperature_2m,relative_humidity_2m,apparent_temperature&forecast_days=1&timezone=auto');
+    final res=await http.get(url);
+    if(res.statusCode!=200) return;
+    final data=jsonDecode(res.body);
+    List times=data['hourly']['time']; List temps=data['hourly']['temperature_2m'];
+    List humidity=data['hourly']['relative_humidity_2m']; List apparent=data['hourly']['apparent_temperature'];
+    forecastNames=[];
+    streets=streets.map((s){
+      List<Map<String,dynamic>> fcast=[];
+      for(int i=0;i<times.length;i+=1){
+        fcast.add(_calcRisk(temps[i].toDouble(),humidity[i].toDouble(),apparent[i].toDouble(),_surfaceScore(s.surface),times[i]));
+        forecastNames.add(times[i].toString().substring(11,16));
+        if(fcast.length>=6) break;
+      }
+      s.forecasts.addAll(fcast); return s;
+    }).toList();
+    setState((){});
   }
 }
