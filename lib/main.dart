@@ -46,7 +46,11 @@ class _HeatRiskWebViewState extends State<HeatRiskWebView> {
 
       androidController.setGeolocationPermissionsPromptCallbacks(
         onShowPrompt: (request) async {
-          request.allow();
+          return GeolocationPermissionsResponse(
+            origin: request.origin,
+            allow: true,
+            retain: true,
+          );
         },
       );
     }
