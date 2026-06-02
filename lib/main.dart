@@ -229,7 +229,7 @@ const String _html = r'''
 
 <script>
 let map, userMarker, streetMarkers=[], currentForecast=0, lastLat=null, lastLon=null;
-const forecastNames=["Now","+2 Hours","+6 Hours"];
+let forecastNames=["Now","+2 Hours","+6 Hours"];
 let cachedWeather=null;
 
 function initMap(lat, lon){
@@ -238,7 +238,7 @@ function initMap(lat, lon){
         L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",{
             attribution:"Tiles &copy; Esri", maxZoom:16
         }).addTo(map);
-        userMarker=L.marker([lat,lon]).addTo(map).bindPopup("You are here").openPopup();
+        userMarker=L.marker([lat,lon]).addTo(map).bindPopup("Loading location...").openPopup();
     } else { 
         map.setView([lat,lon],15); 
         userMarker.setLatLng([lat,lon]); 
@@ -310,6 +310,10 @@ async function loadPlaceName(lat, lon){
     const url=`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=en`;
     const response=await fetch(url,{headers:{"User-Agent":"AI-Heat-Risk-Demo/1.0"}});
     const data=await response.json();
+    const shortLocation = data.display_name ? data.display_name.split(",").slice(0,3).join(",") : "Current location";
+    if(userMarker){
+      userMarker.bindPopup(shortLocation).openPopup();
+    }
 
     document.getElementById("placeBox").innerHTML=
         `<b>Current Location:</b><br>${data.display_name || "Unknown location"}<br>
@@ -320,12 +324,54 @@ async function fetchWeather(lat, lon){
     const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,apparent_temperature&forecast_days=1&timezone=auto`;
     const response=await fetch(url);
     const data=await response.json();
+
+    const now = new Date();
+    const currentHour = now.getHours();
+
+    let startIndex = 0;
+    for(let i=0; i<data.hourly.time.length; i++){
+        const forecastTime = new Date(data.hourly.time[i]);
+        if(forecastTime.getHours() >= currentHour){
+            startIndex = i;
+            break;
+        }
+    }
+
     cachedWeather={
-        time:data.hourly.time,
-        temperature:data.hourly.temperature_2m,
-        humidity:data.hourly.relative_humidity_2m,
-        apparent_temperature:data.hourly.apparent_temperature
+        time:[
+            data.hourly.time[startIndex],
+            data.hourly.time[startIndex+2],
+            data.hourly.time[startIndex+4],
+            data.hourly.time[startIndex+6]
+        ],
+        temperature:[
+            data.hourly.temperature_2m[startIndex],
+            data.hourly.temperature_2m[startIndex+2],
+            data.hourly.temperature_2m[startIndex+4],
+            data.hourly.temperature_2m[startIndex+6]
+        ],
+        humidity:[
+            data.hourly.relative_humidity_2m[startIndex],
+            data.hourly.relative_humidity_2m[startIndex+2],
+            data.hourly.relative_humidity_2m[startIndex+4],
+            data.hourly.relative_humidity_2m[startIndex+6]
+        ],
+        apparent_temperature:[
+            data.hourly.apparent_temperature[startIndex],
+            data.hourly.apparent_temperature[startIndex+2],
+            data.hourly.apparent_temperature[startIndex+4],
+            data.hourly.apparent_temperature[startIndex+6]
+        ]
     };
+
+    forecastNames = cachedWeather.time.map(t => {
+        const d = new Date(t);
+        return d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    });
+
+    document.getElementById("forecastSlider").max = forecastNames.length - 1;
+    document.getElementById("forecastSlider").value = 0;
+    document.getElementById("forecastLabel").innerText = forecastNames[0];
 }
 
 async function fetchStreets(lat, lon){
@@ -389,7 +435,7 @@ async function loadStreets(lat, lon){
     let bounds=[[lat,lon]];
 
     for(const street of data.streets){
-        const index=currentForecast===0?0:currentForecast===1?2:6;
+        const index=currentForecast;
 
         const temp=cachedWeather.temperature[index];
         const humidity=cachedWeather.humidity[index];
