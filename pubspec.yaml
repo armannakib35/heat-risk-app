@@ -1,0 +1,20 @@
+name: heat_risk_app
+description: AI Heat Risk Warning mobile app
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  http: ^1.2.2
+  geolocator: ^13.0.1
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
+flutter:
+  uses-material-design: true
