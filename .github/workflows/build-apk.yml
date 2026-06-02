@@ -28,6 +28,12 @@ jobs:
       - name: Create Flutter platform files
         run: flutter create .
 
+      - name: Add Android permissions
+        run: |
+          sed -i '/<application/i <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
+          sed -i '/<application/i <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>' android/app/src/main/AndroidManifest.xml
+          sed -i '/<application/i <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>' android/app/src/main/AndroidManifest.xml
+
       - name: Get packages
         run: flutter pub get
 
