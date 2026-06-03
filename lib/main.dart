@@ -195,6 +195,8 @@ function speakMessage(message) {
     utterance.rate = 0.9;
     utterance.pitch = 1.0;
     utterance.volume = 1;
+    utterance.onerror = function(event) { console.log('Voice error:', event); };
+    window.speechSynthesis.speak(utterance);
     window.speechSynthesis.speak(utterance);
   }
 }
@@ -407,7 +409,7 @@ async function updateStreets() {
     var score = Math.min(100, baseScore + surfaceScore);
     var level = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
     var advice = level === 'DANGER' ? '🔥 Avoid this street' : (level === 'ALERT' ? '⚠️ Take caution' : '✅ Safe for walking');
-    html += '<div class="street-card ' + level + '"><div class="street-name">🛣️ ' + street.name + '</div><div class="street-details"><span>🏗️ ' + street.type + '</span><span>🌡️ ' + temp + '°C</span><span>💧 ' + humidity + '%</span><span>🌡️ Feels: ' + feelsLike + '°C</span><span>⚠️ ' + level + ' (' + score + '/100)</span></div><div class="street-details">' + advice + '</div></div>';
+    html += '<div class="street-card ' + level + '"><div class="street-name">🛣️ ' + street.name + '</div><div class="street-details"><span>🏗️ ' + street.type + '</span><span>🌡️ ' + temp + '°C</span><span>💧 ' + humidity + '%</span><span>🌡️ Feels: ' + feelsLike + '°C</span><span> ' + level + ' (' + score + '/100)</span></div><div class="street-details">' + advice + '</div></div>';
     var color = level === 'DANGER' ? '#ff4b4b' : (level === 'ALERT' ? '#ffa500' : '#4caf50');
     var radius = 25 + (score / 2);
     var circle = L.circle([street.lat, street.lon], { radius: radius, color: color, fillColor: color, fillOpacity: 0.5, weight: 3 }).addTo(map);
@@ -439,6 +441,14 @@ function updateAgents(loading) {
 }
 
 window.onload = function() { refreshData(); };
+</script>
+<button id="initVoiceBtn" style="display:none;" onclick="speakMessage('Voice ready')"></button>
+<script>
+// Force voice initialization on page load
+setTimeout(function() {
+  var btn = document.getElementById('initVoiceBtn');
+  if (btn) btn.click();
+}, 1000);
 </script>
 </body>
 </html>
