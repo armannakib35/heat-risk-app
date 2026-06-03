@@ -969,3 +969,318 @@ function generateRoutes() {
       const lat = route.points[i * 2];
       const lon = route.points[i * 2 + 1];
       // Estimate temperature based on position and current temp
+      const baseTemp = cachedWeather ? cachedWeather.temperature[currentForecast] : 25;
+      // Add random variation based on position (more shade = cooler)
+      const variation = route.type === 'shaded' ? -3 : (route.type === 'park' ? -2 : 1);
+      totalTemp += baseTemp + variation;
+    }
+    route.heatScore = Math.round(totalTemp / steps);
+    route.riskLevel = route.heatScore >= 32 ? 'DANGER' : (route.heatScore >= 27 ? 'ALERT' : 'SAFE');
+    route.riskColor = route.riskLevel === 'DANGER' ? '#ff4b4b' : (route.riskLevel === 'ALERT' ? '#ffa500' : '#4caf50');
+  });
+  
+  // Find best route (lowest heat score)
+  routes.sort((a, b) => a.heatScore - b.heatScore);
+  routes[0].isBest = true;
+  
+  return routes;
+}
+
+function displayRouteOptions(routes) {
+  let html = '<div class="route-info"><strong>🎯 Recommended Routes</strong><br><small>Based on current heat conditions</small></div>';
+  
+  routes.forEach((route, idx) => {
+    const bestTag = route.isBest ? '🏆 BEST CHOICE - ' : '';
+    html += `
+      <div class="street-card ${route.riskLevel}" style="cursor:pointer;" onclick="showRouteOnMap(${idx})">
+        <div class="street-name">${bestTag}${route.name}</div>
+        <div class="street-details">
+          <span>🌡️ Heat Score: ${route.heatScore}°C</span>
+          <span>⚡ Risk: ${route.riskLevel}</span>
+        </div>
+        <div class="street-details">${route.description}</div>
+        <div class="street-details" style="margin-top:6px; color:#ff7e5f;">
+          🗺️ Click to view on map
+        </div>
+      </div>
+    `;
+  });
+  
+  // Add best route summary
+  const bestRoute = routes[0];
+  html += `
+    <div class="best-route">
+      🌟 ${bestRoute.name}<br>
+      <small>Recommended: ${bestRoute.heatScore}°C average - ${bestRoute.riskLevel === 'SAFE' ? 'Safest option' : 'Proceed with caution'}</small>
+    </div>
+  `;
+  
+  document.getElementById('resultsContent').innerHTML = html;
+}
+
+function showRouteOnMap(routeIndex) {
+  const route = currentRoutes[routeIndex];
+  if (!route) return;
+  
+  // Clear previous route markers
+  if (window.routeLines) {
+    window.routeLines.forEach(line => map.removeLayer(line));
+  }
+  window.routeLines = [];
+  
+  // Draw the route
+  const points = [];
+  for (let i = 0; i < route.points.length; i += 2) {
+    points.push([route.points[i], route.points[i + 1]]);
+  }
+  
+  const line = L.polyline(points, {
+    color: route.riskColor,
+    weight: 5,
+    opacity: 0.8,
+    dashArray: '10, 10'
+  }).addTo(map);
+  
+  if (!window.routeLines) window.routeLines = [];
+  window.routeLines.push(line);
+  
+  // Fit bounds to show entire route
+  const bounds = L.latLngBounds(points);
+  map.fitBounds(bounds, { padding: [50, 50] });
+  
+  // Add animated marker
+  if (window.animatedMarker) map.removeLayer(window.animatedMarker);
+  window.animatedMarker = L.marker(points[0], {
+    icon: L.divIcon({
+      className: 'custom-div-icon',
+      html: '<div style="background-color:#ff7e5f; width:14px; height:14px; border-radius:50%; border:2px solid white; animation:pulse 1s infinite;"></div>',
+      iconSize: [14, 14]
+    })
+  }).addTo(map).bindPopup('Recommended start');
+}
+
+// Fetch nearby streets
+async function fetchNearbyStreets(lat, lon) {
+  const query = `[out:json][timeout:25];way["highway"](around:500,${lat},${lon});out center tags;`;
+  const response = await fetch("https://overpass-api.de/api/interpreter", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "AI-Heat-Risk-Demo/1.0" },
+    body: "data=" + encodeURIComponent(query)
+  });
+  const data = await response.json();
+  
+  const streets = [];
+  const seen = new Set();
+  
+  for (const element of data.elements || []) {
+    const tags = element.tags;
+    const center = element.center;
+    if (!tags || !center) continue;
+    
+    const name = tags["name:en"] || tags.name || `Unnamed ${tags.highway || 'road'}`;
+    const key = `${name}-${center.lat.toFixed(4)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    
+    streets.push({
+      name: name,
+      lat: center.lat,
+      lon: center.lon,
+      type: tags.highway || 'road',
+      surface: getSurfaceType(tags.highway)
+    });
+    
+    if (streets.length >= 15) break;
+  }
+  
+  return streets;
+}
+
+function getSurfaceType(highway) {
+  const concrete = ["motorway", "trunk", "primary", "secondary"];
+  const mixed = ["residential", "tertiary", "living_street"];
+  if (concrete.includes(highway)) return "Concrete/Road";
+  if (mixed.includes(highway)) return "Mixed Surface";
+  return "Natural/Greenery";
+}
+
+// Update UI for nearby mode
+async function updateNearbyMode() {
+  if (!currentLat || !currentLon || !cachedWeather) return;
+  
+  document.getElementById('resultsContent').innerHTML = '<div class="loading">🌡️ Analyzing nearby streets...</div>';
+  updateAgents(true);
+  
+  const streets = await fetchNearbyStreets(currentLat, currentLon);
+  const temp = cachedWeather.temperature[currentForecast];
+  const humidity = cachedWeather.humidity[currentForecast];
+  
+  let html = '';
+  
+  streets.forEach(street => {
+    const surfaceScore = street.surface === "Concrete/Road" ? 30 : (street.surface === "Mixed Surface" ? 18 : 6);
+    let riskScore = calculateRiskScore(temp) + surfaceScore;
+    riskScore = Math.min(100, riskScore);
+    
+    let level = riskScore >= 70 ? 'DANGER' : (riskScore >= 40 ? 'ALERT' : 'SAFE');
+    let advice = level === 'DANGER' ? 'Avoid this street' : (level === 'ALERT' ? 'Take caution' : 'Safe to walk');
+    
+    html += `
+      <div class="street-card ${level}">
+        <div class="street-name">🛣️ ${street.name}</div>
+        <div class="street-details">
+          <span>🏗️ Type: ${street.type}</span>
+          <span>🟤 Surface: ${street.surface}</span>
+        </div>
+        <div class="street-details">
+          <span>🌡️ Temp: ${temp}°C</span>
+          <span>💧 Humidity: ${humidity}%</span>
+          <span>⚠️ Risk: ${riskScore}/100 (${level})</span>
+        </div>
+        <div class="street-details">${advice}</div>
+      </div>
+    `;
+    
+    // Add to map
+    const color = level === 'DANGER' ? '#ff4b4b' : (level === 'ALERT' ? '#ffa500' : '#4caf50');
+    const circle = L.circle([street.lat, street.lon], {
+      radius: 25 + riskScore / 2,
+      color: color,
+      fillColor: color,
+      fillOpacity: 0.5,
+      weight: 2
+    }).addTo(map).bindPopup(`<b>${street.name}</b><br>Risk: ${level}<br>Temp: ${temp}°C`);
+    
+    streetMarkers.push(circle);
+  });
+  
+  if (html === '') html = '<div class="loading">No nearby streets found</div>';
+  document.getElementById('resultsContent').innerHTML = html;
+  updateAgents(false);
+}
+
+// Set map mode
+function setMapMode(mode) {
+  currentMode = mode;
+  
+  // Update button styles
+  document.getElementById('nearbyBtn').classList.remove('active');
+  document.getElementById('routesBtn').classList.remove('active');
+  document.getElementById(`${mode}Btn`).classList.add('active');
+  
+  // Show/hide destination card
+  const destCard = document.getElementById('destinationCard');
+  if (mode === 'routes') {
+    destCard.style.display = 'block';
+  } else {
+    destCard.style.display = 'none';
+    document.getElementById('findRouteBtn').style.display = 'none';
+    document.getElementById('suggestions').classList.add('hidden');
+  }
+  
+  // Clear and reload based on mode
+  clearMapOverlays();
+  if (mode === 'nearby') {
+    updateNearbyMode();
+  }
+}
+
+function clearMapOverlays() {
+  streetMarkers.forEach(m => map.removeLayer(m));
+  streetMarkers = [];
+  if (window.routeLines) {
+    window.routeLines.forEach(l => map.removeLayer(l));
+    window.routeLines = [];
+  }
+  if (window.heatCircles) {
+    window.heatCircles.forEach(c => map.removeLayer(c));
+    window.heatCircles = [];
+  }
+}
+
+function updateForecast(value) {
+  currentForecast = parseInt(value);
+  document.getElementById('forecastValue').innerText = forecastNames[currentForecast];
+  
+  if (currentLat && cachedWeather) {
+    updateUserCircle(currentLat, currentLon);
+    updateHeatOverlay();
+    if (currentMode === 'nearby') updateNearbyMode();
+  }
+}
+
+// Update AI agents
+function updateAgents(loading) {
+  const agents = [
+    { name: '🌡️ Heat Sensor', status: loading ? 'Scanning...' : 'Active' },
+    { name: '🗺️ Surface Scanner', status: loading ? 'Analyzing...' : 'Ready' },
+    { name: '👥 People Tracker', status: loading ? 'Tracking...' : 'Monitoring' },
+    { name: '⚖️ Risk Calculator', status: loading ? 'Computing...' : 'Online' },
+    { name: '🔔 Alert Agent', status: loading ? 'Preparing...' : 'Standby' },
+    { name: '🧠 Learning AI', status: loading ? 'Updating...' : 'Optimized' }
+  ];
+  
+  let html = '';
+  agents.forEach(agent => {
+    html += `
+      <div class="agent-card ${loading ? 'active' : ''}">
+        <div class="agent-name">${agent.name}</div>
+        <div class="agent-status">${agent.status}</div>
+        <div class="agent-dot"></div>
+      </div>
+    `;
+  });
+  document.getElementById('agentsGrid').innerHTML = html;
+}
+
+// Main refresh function
+async function refreshRisk() {
+  updateAgents(true);
+  document.getElementById('resultsContent').innerHTML = '<div class="loading">🌍 Getting your location...</div>';
+  document.getElementById('locationName').innerHTML = 'Getting location...';
+  
+  navigator.geolocation.getCurrentPosition(async function(position) {
+    currentLat = position.coords.latitude;
+    currentLon = position.coords.longitude;
+    
+    initMap(currentLat, currentLon);
+    
+    const locationName = await getLocationName(currentLat, currentLon);
+    const shortName = locationName.split(',').slice(0, 2).join(',');
+    document.getElementById('locationName').innerHTML = shortName;
+    
+    await fetchWeather(currentLat, currentLon);
+    updateHeatOverlay();
+    
+    const temp = cachedWeather.temperature[0];
+    const riskScore = calculateRiskScore(temp);
+    let riskLevel = riskScore >= 70 ? 'DANGER' : (riskScore >= 40 ? 'ALERT' : 'SAFE');
+    let message = riskLevel === 'DANGER' ? '🔥 Extreme heat! Stay indoors if possible.' : 
+                  (riskLevel === 'ALERT' ? '⚠️ High heat - take frequent breaks.' : 
+                   '✅ Safe conditions but stay hydrated.');
+    
+    updateWarningCard(riskLevel, riskScore, shortName, message);
+    updateUserCircle(currentLat, currentLon);
+    
+    if (currentMode === 'nearby') {
+      await updateNearbyMode();
+    }
+    
+    updateAgents(false);
+  }, function(error) {
+    console.error(error);
+    document.getElementById('resultsContent').innerHTML = '<div class="loading">❌ Location access denied. Please enable location services.</div>';
+    document.getElementById('locationName').innerHTML = 'Location unavailable';
+    updateAgents(false);
+  }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+// Initialize on load
+window.onload = () => {
+  updateAgents(false);
+  refreshRisk();
+};
+</script>
+</body>
+</html>
+''';
