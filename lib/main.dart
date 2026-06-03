@@ -201,14 +201,10 @@ let cachedWeather = null, currentForecast = 0, forecastNames = [];
 let streetMarkers = [];
 let fullAddress = '';
 
+// VOICE FUNCTION - speaks messages through Flutter TTS
 function speakMessage(message) {
   if (window.TtsChannel) {
     window.TtsChannel.postMessage(message);
-  } else {
-    try {
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(new SpeechSynthesisUtterance(message));
-    } catch(e) { }
   }
 }
 
@@ -299,11 +295,11 @@ function updateWarningCard() {
   var riskLevel = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
   var message = '';
   if (riskLevel === 'DANGER') {
-    message = 'DANGER! Extreme heat at ' + temp + ' degrees. Avoid outdoor exposure.';
+    message = 'DANGER! Extreme heat at ' + temp + ' degrees. Avoid outdoor exposure. Stay in air conditioning, drink water every 15 minutes.';
   } else if (riskLevel === 'ALERT') {
-    message = 'ALERT! High heat at ' + temp + ' degrees. Stay hydrated.';
+    message = 'ALERT! High heat at ' + temp + ' degrees. Stay hydrated, use sunscreen, take breaks in shade.';
   } else {
-    message = 'SAFE. ' + temp + ' degrees. Conditions are good.';
+    message = 'SAFE. ' + temp + ' degrees. Conditions are good for outdoor activities. Stay hydrated.';
   }
   var card = document.getElementById('warningCard');
   var icon = document.getElementById('warningIcon');
@@ -328,6 +324,8 @@ function updateWarningCard() {
   warningMsg.innerHTML = message;
   locationSpan.innerHTML = fullAddress.substring(0, 80);
   riskBadge.innerHTML = 'Score: ' + score + '/100 | ' + temp + '°C | Feels: ' + feelsLike + '°C | Humidity: ' + humidity + '%';
+  
+  // VOICE: Speak the warning message
   speakMessage(message);
 }
 
