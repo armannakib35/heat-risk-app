@@ -105,7 +105,6 @@ const String _html = r'''
       border-radius: 10px;
     }
 
-    /* Main Container */
     .app-container {
       max-width: 550px;
       margin: 0 auto;
@@ -113,7 +112,6 @@ const String _html = r'''
       padding-bottom: 30px;
     }
 
-    /* Header - CENTER ALIGNED */
     .header {
       background: rgba(255,255,255,0.95);
       border-radius: 28px;
@@ -139,7 +137,6 @@ const String _html = r'''
       font-weight: 500;
     }
 
-    /* Tab Navigation */
     .tab-container {
       display: flex;
       gap: 12px;
@@ -165,7 +162,6 @@ const String _html = r'''
       box-shadow: 0 4px 15px rgba(255,126,95,0.3);
     }
 
-    /* Warning Card - FULL MESSAGE */
     .warning-card {
       background: linear-gradient(135deg, #1a1a2e, #16213e);
       border-radius: 20px;
@@ -244,7 +240,6 @@ const String _html = r'''
       color: white;
     }
 
-    /* Map Container */
     .map-section {
       background: rgba(255,255,255,0.95);
       border-radius: 24px;
@@ -264,14 +259,15 @@ const String _html = r'''
       color: #333;
     }
 
-    #map {
+    #heatmap, #routemap {
       height: 400px;
       border-radius: 20px;
       overflow: hidden;
       box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      background: #f0f0f0;
+      width: 100%;
     }
 
-    /* Control Panel */
     .control-panel {
       background: rgba(255,255,255,0.95);
       border-radius: 24px;
@@ -316,7 +312,6 @@ const String _html = r'''
       border: 2px solid white;
     }
 
-    /* Location Card - MORE DETAILS */
     .location-card {
       background: #f8f9fa;
       border-radius: 16px;
@@ -351,9 +346,9 @@ const String _html = r'''
       color: #555;
       display: flex;
       gap: 16px;
+      flex-wrap: wrap;
     }
 
-    /* Destination Search (Route Tab Only) */
     .destination-card {
       background: white;
       border-radius: 16px;
@@ -416,7 +411,6 @@ const String _html = r'''
       background: #f5f5f5;
     }
 
-    /* Agents Grid */
     .agents-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -463,7 +457,6 @@ const String _html = r'''
       50% { opacity: 0.3; }
     }
 
-    /* Results Container */
     .results-container {
       background: rgba(255,255,255,0.95);
       border-radius: 24px;
@@ -532,6 +525,7 @@ const String _html = r'''
       display: flex;
       gap: 12px;
       margin-top: 6px;
+      flex-wrap: wrap;
     }
 
     .hidden {
@@ -555,13 +549,11 @@ const String _html = r'''
 
 <body>
 <div class="app-container">
-  <!-- Header - CENTER ALIGNED -->
   <div class="header">
     <h1>🌡️ AI Heat Risk Warning</h1>
     <p>Real-time thermal monitoring & intelligent route planning</p>
   </div>
 
-  <!-- Tab Navigation -->
   <div class="tab-container">
     <button class="tab-btn active" id="heatmapTab" onclick="switchTab('heatmap')">🔥 Heat Map</button>
     <button class="tab-btn" id="routeTab" onclick="switchTab('route')">🗺️ Route Planner</button>
@@ -569,7 +561,6 @@ const String _html = r'''
 
   <!-- HEAT MAP TAB -->
   <div id="heatmapPanel">
-    <!-- Warning Card - FULL MESSAGE -->
     <div id="warningCard" class="warning-card safe" onclick="refreshHeatmap()">
       <div class="warning-header">
         <span class="warning-icon" id="warningIcon">✅</span>
@@ -582,10 +573,9 @@ const String _html = r'''
         <span>📍</span>
         <span id="warningLocation">--</span>
       </div>
-      <div class="risk-badge" id="riskBadge">Risk Score: --</div>
+      <div class="risk-badge" id="riskBadge">Score: --</div>
     </div>
 
-    <!-- Map Section -->
     <div class="map-section">
       <div class="map-title">
         <h3>🗺️ Heat Risk Map</h3>
@@ -593,7 +583,6 @@ const String _html = r'''
       <div id="heatmap"></div>
     </div>
 
-    <!-- Control Panel -->
     <div class="control-panel">
       <div class="slider-container">
         <div class="slider-label">
@@ -607,7 +596,6 @@ const String _html = r'''
       </button>
     </div>
 
-    <!-- Location Info - MORE DETAILS -->
     <div class="location-card">
       <h4>📍 CURRENT LOCATION</h4>
       <div class="location-name" id="locationName">Tap refresh to get location</div>
@@ -617,22 +605,19 @@ const String _html = r'''
       </div>
     </div>
 
-    <!-- AI Agents -->
     <div class="control-panel">
       <h4 style="margin-bottom:12px;">🤖 AI Agent Network</h4>
       <div class="agents-grid" id="agentsGridHeat"></div>
     </div>
 
-    <!-- Results -->
     <div class="results-container">
       <h3>📊 Street Heat Analysis</h3>
       <div id="resultsHeat">Waiting for location data...</div>
     </div>
   </div>
 
-  <!-- ROUTE PLANNER TAB (Hidden by default) -->
+  <!-- ROUTE PLANNER TAB -->
   <div id="routePanel" class="hidden">
-    <!-- Route Map -->
     <div class="map-section">
       <div class="map-title">
         <h3>🗺️ Route Planning Map</h3>
@@ -640,7 +625,6 @@ const String _html = r'''
       <div id="routemap"></div>
     </div>
 
-    <!-- Destination Search -->
     <div class="destination-card">
       <h4 style="margin-bottom:10px;">🎯 Plan Your Route</h4>
       <div class="search-box">
@@ -651,7 +635,6 @@ const String _html = r'''
       <button class="route-btn" id="findRouteBtn" onclick="findRoutes()" style="display:none;">🌿 Find Coolest Routes</button>
     </div>
 
-    <!-- Route Results -->
     <div class="results-container">
       <h3>🚶 Route Options (Click to View)</h3>
       <div id="routeResults">Search a destination to see route options</div>
@@ -671,7 +654,8 @@ let currentRoutes = [];
 let destinationLat = null, destinationLon = null;
 let destinationName = '';
 let routeLines = [];
-let selectedRouteIndex = null;
+let cityName = '';
+let countryName = '';
 
 // ============ TAB SWITCHING ============
 function switchTab(tab) {
@@ -685,16 +669,12 @@ function switchTab(tab) {
     routePanel.classList.add('hidden');
     heatmapTab.classList.add('active');
     routeTab.classList.remove('active');
-    // Refresh heatmap map if needed
-    if (heatmapMap && currentLat) {
-      setTimeout(() => heatmapMap.invalidateSize(), 100);
-    }
+    setTimeout(() => { if (heatmapMap) heatmapMap.invalidateSize(); }, 100);
   } else {
     heatmapPanel.classList.add('hidden');
     routePanel.classList.remove('hidden');
     heatmapTab.classList.remove('active');
     routeTab.classList.add('active');
-    // Initialize route map if needed
     if (!routeMap && currentLat) {
       initRouteMap(currentLat, currentLon);
     } else if (routeMap && currentLat) {
@@ -713,11 +693,11 @@ function initHeatmapMap(lat, lon) {
       subdomains: 'abcd',
       maxZoom: 19
     }).addTo(heatmapMap);
+    console.log("Heatmap map initialized");
   } else {
     heatmapMap.setView([lat, lon], 15);
   }
   
-  // Add user marker
   if (window.userMarkerHeat) heatmapMap.removeLayer(window.userMarkerHeat);
   window.userMarkerHeat = L.marker([lat, lon], {
     icon: L.divIcon({
@@ -747,35 +727,37 @@ async function refreshHeatmap() {
     
     initHeatmapMap(currentLat, currentLon);
     
-    // Get detailed location info
     const locationData = await getDetailedLocation(currentLat, currentLon);
-    document.getElementById('locationName').innerHTML = locationData.name;
+    cityName = locationData.city;
+    countryName = locationData.country;
+    document.getElementById('locationName').innerHTML = `${locationData.city}, ${locationData.country}`;
     document.getElementById('locationCoords').innerHTML = `${currentLat.toFixed(5)}°N, ${currentLon.toFixed(5)}°E`;
     
     await fetchWeather(currentLat, currentLon);
-    updateHeatmapStreets();
+    await updateHeatmapStreets();
     updateWarningCard();
     updateLocationDetails();
     updateAgents('heat', false);
   }, function(error) {
+    console.error("Geolocation error:", error);
     document.getElementById('resultsHeat').innerHTML = '<div class="loading">❌ Location access denied. Please enable location services.</div>';
     updateAgents('heat', false);
-  }, { enableHighAccuracy: true });
+  }, { enableHighAccuracy: true, timeout: 10000 });
 }
 
 async function getDetailedLocation(lat, lon) {
   const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=en`;
-  const response = await fetch(url, { headers: { "User-Agent": "AI-Heat-Risk-Demo/1.0" } });
-  const data = await response.json();
-  
-  let shortName = data.display_name?.split(',').slice(0, 3).join(',') || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-  let address = data.address || {};
-  
-  return {
-    name: shortName,
-    city: address.city || address.town || address.village || 'Unknown',
-    country: address.country || 'Unknown'
-  };
+  try {
+    const response = await fetch(url, { headers: { "User-Agent": "AI-Heat-Risk-Demo/1.0" } });
+    const data = await response.json();
+    
+    let city = data.address?.city || data.address?.town || data.address?.village || data.address?.suburb || 'Unknown City';
+    let country = data.address?.country || 'Unknown Country';
+    
+    return { city: city, country: country, fullName: data.display_name || `${city}, ${country}` };
+  } catch(e) {
+    return { city: 'Unknown City', country: 'Unknown Country', fullName: 'Location unavailable' };
+  }
 }
 
 function updateLocationDetails() {
@@ -785,9 +767,9 @@ function updateLocationDetails() {
   const feelsLike = cachedWeather.apparent_temperature[currentForecast];
   
   document.getElementById('locationDetails').innerHTML = `
-    <span>🌡️ Temp: ${temp}°C</span>
+    <span>🌡️ Temperature: ${temp}°C</span>
     <span>💧 Humidity: ${humidity}%</span>
-    <span>🌡️ Feels: ${feelsLike}°C</span>
+    <span>🌡️ Feels Like: ${feelsLike}°C</span>
   `;
 }
 
@@ -797,8 +779,8 @@ function updateWarningCard() {
   const temp = cachedWeather.temperature[currentForecast];
   const humidity = cachedWeather.humidity[currentForecast];
   const feelsLike = cachedWeather.apparent_temperature[currentForecast];
-  let riskScore = calculateRiskScore(temp);
-  let riskLevel = riskScore >= 70 ? 'DANGER' : (riskScore >= 40 ? 'ALERT' : 'SAFE');
+  let score = calculateRiskScore(temp);
+  let riskLevel = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
   
   let message = '';
   if (riskLevel === 'DANGER') {
@@ -832,8 +814,8 @@ function updateWarningCard() {
   }
   
   warningMsg.innerHTML = message;
-  locationSpan.innerHTML = document.getElementById('locationName').innerHTML;
-  riskBadge.innerHTML = `Risk Score: ${riskScore}/100 | Temp: ${temp}°C | Feels: ${feelsLike}°C | Humidity: ${humidity}%`;
+  locationSpan.innerHTML = `${cityName}, ${countryName}`;
+  riskBadge.innerHTML = `Score: ${score}/100 | ${temp}°C | Feels: ${feelsLike}°C | Humidity: ${humidity}%`;
 }
 
 function calculateRiskScore(temp) {
@@ -882,8 +864,10 @@ async function fetchWeather(lat, lon) {
   forecastNames = resultTime.map(t => t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   
   const slider = document.getElementById('forecastSliderHeat');
-  slider.max = forecastNames.length - 1;
-  document.getElementById('forecastValueHeat').innerText = forecastNames[0];
+  if (slider) {
+    slider.max = forecastNames.length - 1;
+    document.getElementById('forecastValueHeat').innerText = forecastNames[0];
+  }
 }
 
 async function fetchNearbyStreets(lat, lon) {
@@ -919,16 +903,16 @@ async function updateHeatmapStreets() {
   const streets = await fetchNearbyStreets(currentLat, currentLon);
   const temp = cachedWeather.temperature[currentForecast];
   const humidity = cachedWeather.humidity[currentForecast];
+  const feelsLike = cachedWeather.apparent_temperature[currentForecast];
   
-  // Clear previous markers
   streetMarkers.forEach(m => heatmapMap.removeLayer(m));
   streetMarkers = [];
   
   let html = '';
   for (const street of streets) {
-    let riskScore = calculateRiskScore(temp) + (street.type.includes('primary') || street.type.includes('motorway') ? 20 : 10);
-    riskScore = Math.min(100, riskScore);
-    let level = riskScore >= 70 ? 'DANGER' : (riskScore >= 40 ? 'ALERT' : 'SAFE');
+    let score = calculateRiskScore(temp) + (street.type.includes('primary') || street.type.includes('motorway') ? 20 : 10);
+    score = Math.min(100, score);
+    let level = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
     let advice = level === 'DANGER' ? 'Avoid this street - high heat absorption' : (level === 'ALERT' ? 'Take caution on this street' : 'Safe street for walking');
     
     html += `
@@ -936,8 +920,10 @@ async function updateHeatmapStreets() {
         <div class="street-name">🛣️ ${street.name}</div>
         <div class="street-details">
           <span>🏗️ Type: ${street.type}</span>
-          <span>🌡️ Temp: ${temp}°C</span>
-          <span>⚠️ Risk: ${riskScore}/100 (${level})</span>
+          <span>🌡️ Temperature: ${temp}°C</span>
+          <span>💧 Humidity: ${humidity}%</span>
+          <span>🌡️ Feels Like: ${feelsLike}°C</span>
+          <span>⚠️ Level: ${level} (${score}/100)</span>
         </div>
         <div class="street-details">${advice}</div>
       </div>
@@ -945,12 +931,12 @@ async function updateHeatmapStreets() {
     
     const color = level === 'DANGER' ? '#ff4b4b' : (level === 'ALERT' ? '#ffa500' : '#4caf50');
     const circle = L.circle([street.lat, street.lon], {
-      radius: 20 + riskScore / 3,
+      radius: 20 + score / 3,
       color: color,
       fillColor: color,
       fillOpacity: 0.5,
       weight: 2
-    }).addTo(heatmapMap).bindPopup(`<b>${street.name}</b><br>Risk: ${level}<br>Temp: ${temp}°C`);
+    }).addTo(heatmapMap).bindPopup(`<b>${street.name}</b><br>Level: ${level}<br>Temperature: ${temp}°C<br>Humidity: ${humidity}%<br>Feels Like: ${feelsLike}°C`);
     streetMarkers.push(circle);
   }
   
@@ -963,7 +949,7 @@ function updateAgents(type, loading) {
     { name: '🌡️ Heat Sensor', status: loading ? 'Scanning...' : 'Active' },
     { name: '🗺️ Surface Scanner', status: loading ? 'Analyzing...' : 'Ready' },
     { name: '👥 People Tracker', status: loading ? 'Tracking...' : 'Monitoring' },
-    { name: '⚖️ Risk Calculator', status: loading ? 'Computing...' : 'Online' },
+    { name: '⚖️ Calculator', status: loading ? 'Computing...' : 'Online' },
     { name: '🔔 Alert Agent', status: loading ? 'Preparing...' : 'Standby' },
     { name: '🧠 Learning AI', status: loading ? 'Updating...' : 'Optimized' }
   ];
@@ -988,6 +974,7 @@ function initRouteMap(lat, lon) {
       subdomains: 'abcd',
       maxZoom: 19
     }).addTo(routeMap);
+    console.log("Route map initialized");
   } else {
     routeMap.setView([lat, lon], 14);
   }
@@ -1054,107 +1041,70 @@ async function findRoutes() {
   
   document.getElementById('routeResults').innerHTML = '<div class="loading">🌿 Finding coolest routes along actual roads...</div>';
   
-  // Clear previous routes
   routeLines.forEach(line => routeMap.removeLayer(line));
   routeLines = [];
   
-  // Fetch actual road network between points
   const routes = await fetchActualRoutes();
   currentRoutes = routes;
   displayRouteOptions(routes);
 }
 
 async function fetchActualRoutes() {
-  // Fetch roads near start and destination to create realistic routes
-  const startRoads = await fetchRoadsNearPoint(currentLat, currentLon);
-  const destRoads = await fetchRoadsNearPoint(destinationLat, destinationLon);
-  
-  const routes = [];
   const temp = cachedWeather ? cachedWeather.temperature[0] : 28;
   
-  // Route 1: Most direct road route
+  const routes = [];
+  
   const directPoints = await findPathViaRoads(currentLat, currentLon, destinationLat, destinationLon, 'direct');
   routes.push({
     name: '🚶 Direct Road Route',
     points: directPoints,
     description: 'Follows main roads directly to destination',
-    heatScore: temp + 2,
-    riskLevel: temp + 2 >= 32 ? 'DANGER' : (temp + 2 >= 27 ? 'ALERT' : 'SAFE')
+    heatScore: Math.round(temp + 2),
+    level: (temp + 2) >= 32 ? 'DANGER' : ((temp + 2) >= 27 ? 'ALERT' : 'SAFE')
   });
   
-  // Route 2: Shaded/Residential route (using secondary roads)
   const shadedPoints = await findPathViaRoads(currentLat, currentLon, destinationLat, destinationLon, 'shaded');
   routes.push({
     name: '🌳 Shaded Residential Route',
     points: shadedPoints,
     description: 'Uses residential streets with more tree coverage',
-    heatScore: temp - 2,
-    riskLevel: temp - 2 >= 32 ? 'DANGER' : (temp - 2 >= 27 ? 'ALERT' : 'SAFE')
+    heatScore: Math.round(temp - 2),
+    level: (temp - 2) >= 32 ? 'DANGER' : ((temp - 2) >= 27 ? 'ALERT' : 'SAFE')
   });
   
-  // Route 3: Park/Nature route
   const parkPoints = await findPathViaRoads(currentLat, currentLon, destinationLat, destinationLon, 'park');
   routes.push({
     name: '🏞️ Park & Green Route',
     points: parkPoints,
     description: 'Passes through parks and green areas',
-    heatScore: temp - 4,
-    riskLevel: temp - 4 >= 32 ? 'DANGER' : (temp - 4 >= 27 ? 'ALERT' : 'SAFE')
+    heatScore: Math.round(temp - 4),
+    level: (temp - 4) >= 32 ? 'DANGER' : ((temp - 4) >= 27 ? 'ALERT' : 'SAFE')
   });
   
   return routes;
 }
 
-async function fetchRoadsNearPoint(lat, lon) {
-  const query = `[out:json][timeout:10];way["highway"](around:300,${lat},${lon});out center;`;
-  const response = await fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "AI-Heat-Risk-Demo/1.0" },
-    body: "data=" + encodeURIComponent(query)
-  });
-  const data = await response.json();
-  return data.elements || [];
-}
-
 async function findPathViaRoads(startLat, startLon, endLat, endLon, type) {
-  // Create intermediate points based on route type
   const points = [[startLat, startLon]];
-  
   const midLat = (startLat + endLat) / 2;
   const midLon = (startLon + endLon) / 2;
-  const dx = endLon - startLon;
-  const dy = endLat - startLat;
-  const distance = Math.sqrt(dx * dx + dy * dy);
   
   let waypoints = [];
-  
-  if (type === 'direct') {
-    // Direct: just start and end
-    waypoints = [];
-  } else if (type === 'shaded') {
-    // Shaded: deviate north (assuming north has more trees in many cities)
+  if (type === 'shaded') {
     const offset = 0.007;
     waypoints = [[midLat + offset, midLon]];
-  } else {
-    // Park: deviate south-west toward greener areas
+  } else if (type === 'park') {
     const offset = 0.008;
     waypoints = [[midLat - offset * 0.7, midLon - offset * 0.5]];
   }
   
-  // Add intermediate points
   for (const wp of waypoints) {
-    points.push(wp);
+    const snapped = await snapToNearestRoad(wp[0], wp[1]);
+    points.push(snapped);
   }
   points.push([endLat, endLon]);
   
-  // Refine points by snapping to nearest roads using Overpass
-  const refinedPoints = [];
-  for (const point of points) {
-    const snapped = await snapToNearestRoad(point[0], point[1]);
-    refinedPoints.push(snapped);
-  }
-  
-  return refinedPoints;
+  return points;
 }
 
 async function snapToNearestRoad(lat, lon) {
@@ -1176,14 +1126,14 @@ async function snapToNearestRoad(lat, lon) {
 function displayRouteOptions(routes) {
   let html = '';
   routes.forEach((route, idx) => {
-    const color = route.riskLevel === 'DANGER' ? '#ff4b4b' : (route.riskLevel === 'ALERT' ? '#ffa500' : '#4caf50');
+    const color = route.level === 'DANGER' ? '#ff4b4b' : (route.level === 'ALERT' ? '#ffa500' : '#4caf50');
     const bestTag = idx === 0 ? '🏆 BEST (Coolest) ' : '';
     html += `
       <div class="route-option" onclick="showRouteOnMap(${idx})" style="border-left: 5px solid ${color}">
         <div class="route-name">${bestTag}${route.name}</div>
         <div class="route-stats">
-          <span>🌡️ Heat: ${route.heatScore}°C</span>
-          <span>⚠️ Risk: ${route.riskLevel}</span>
+          <span>🌡️ Heat Score: ${route.heatScore}°C</span>
+          <span>⚠️ Level: ${route.level}</span>
         </div>
         <div class="route-stats">${route.description}</div>
         <div class="route-stats" style="color:#ff7e5f;">🗺️ Click to view on map</div>
@@ -1198,12 +1148,10 @@ function showRouteOnMap(routeIndex) {
   const route = currentRoutes[routeIndex];
   if (!route || !route.points) return;
   
-  // Clear previous route lines
   routeLines.forEach(line => routeMap.removeLayer(line));
   routeLines = [];
   
-  // Draw the route with actual road-following line
-  const color = route.riskLevel === 'DANGER' ? '#ff4b4b' : (route.riskLevel === 'ALERT' ? '#ffa500' : '#4caf50');
+  const color = route.level === 'DANGER' ? '#ff4b4b' : (route.level === 'ALERT' ? '#ffa500' : '#4caf50');
   
   const line = L.polyline(route.points, {
     color: color,
@@ -1212,28 +1160,11 @@ function showRouteOnMap(routeIndex) {
     lineJoin: 'round',
     lineCap: 'round'
   }).addTo(routeMap);
-  
   routeLines.push(line);
   
-  // Add direction arrows
-  for (let i = 0; i < route.points.length - 1; i++) {
-    const p1 = route.points[i];
-    const p2 = route.points[i + 1];
-    const angle = Math.atan2(p2[0] - p1[0], p2[1] - p1[1]) * 180 / Math.PI;
-    
-    const arrow = L.polyline([p1, p2], {
-      color: color,
-      weight: 6,
-      opacity: 0.7
-    }).addTo(routeMap);
-    routeLines.push(arrow);
-  }
-  
-  // Fit bounds to show full route
   const bounds = L.latLngBounds(route.points);
   routeMap.fitBounds(bounds, { padding: [50, 50] });
   
-  // Highlight selected route in results
   document.querySelectorAll('.route-option').forEach((el, idx) => {
     if (idx === routeIndex) el.classList.add('selected');
     else el.classList.remove('selected');
@@ -1242,9 +1173,9 @@ function showRouteOnMap(routeIndex) {
 
 // Initialize on load
 window.onload = () => {
+  console.log("Page loaded, initializing...");
   refreshHeatmap();
   
-  // Initialize route map when route tab is first accessed
   const checkLocation = setInterval(() => {
     if (currentLat) {
       initRouteMap(currentLat, currentLon);
@@ -1256,3 +1187,4 @@ window.onload = () => {
 </body>
 </html>
 ''';
+}
