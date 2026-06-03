@@ -72,7 +72,6 @@ const String _html = r'''
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 
   <style>
@@ -124,6 +123,10 @@ const String _html = r'''
       transform: translateY(-2px);
     }
 
+    .map-wrap {
+      position: relative;
+    }
+
     #map {
       height: 400px;
       border-radius: 15px;
@@ -131,6 +134,25 @@ const String _html = r'''
       box-shadow: 0 6px 20px rgba(0,0,0,0.1);
       border: 2px solid #ff7e5f33;
     }
+
+    #userWarning {
+      position: absolute;
+      top: 32px;
+      left: 12px;
+      right: 12px;
+      z-index: 999;
+      padding: 12px;
+      border-radius: 14px;
+      color: white;
+      font-size: 13px;
+      font-weight: bold;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+      display: none;
+    }
+
+    .warnSafe { background: #4caf50; }
+    .warnAlert { background: #ffa500; }
+    .warnDanger { background: #ff4b4b; }
 
     .slider-box {
       margin-top: 15px;
@@ -212,11 +234,15 @@ const String _html = r'''
   <div class="slider-box">
     <b>Forecast Time:</b>
     <p id="forecastLabel">Now</p>
-    <input type="range" min="0" max="2" value="0" id="forecastSlider" onchange="changeForecast(this.value)">
+    <input type="range" min="0" max="12" value="0" id="forecastSlider" onchange="changeForecast(this.value)">
   </div>
 
   <div id="placeBox">Location not checked yet.</div>
-  <div id="map"></div>
+
+  <div class="map-wrap">
+    <div id="userWarning"></div>
+    <div id="map"></div>
+  </div>
 
   <center><h3>AI Agent System</h3></center>
   <div class="agents" id="agents"></div>
@@ -229,8 +255,9 @@ const String _html = r'''
 
 <script>
 let map, userMarker, streetMarkers=[], currentForecast=0, lastLat=null, lastLon=null;
-let forecastNames=["Now","+2 Hours","+6 Hours"];
+let forecastNames=["Now"];
 let cachedWeather=null;
+let userShortLocation="Current location";
 
 function initMap(lat, lon){
     if(!map){
@@ -306,18 +333,57 @@ function calculateRisk(temp, humidity, apparentTemp, surfaceScore){
     };
 }
 
+function getUserWarning(level){
+    if(level==="DANGER"){
+        return "🚨 DANGER: If possible do not go out. Drink water, use sunscreen cream, stay in shade, and avoid hot streets.";
+    }
+    if(level==="ALERT"){
+        return "⚠️ ALERT: Drink water, take umbrella, use sunscreen cream, and reduce outdoor exposure.";
+    }
+    return "✅ SAFE: Still drink water and use basic sun protection.";
+}
+
+function updateUserWarning(){
+    if(!cachedWeather) return;
+
+    const temp=cachedWeather.temperature[currentForecast];
+    const humidity=cachedWeather.humidity[currentForecast];
+    const apparentTemp=cachedWeather.apparent_temperature[currentForecast];
+
+    const userRisk=calculateRisk(temp,humidity,apparentTemp,18);
+    const box=document.getElementById("userWarning");
+
+    box.className="";
+    if(userRisk.level==="DANGER") box.classList.add("warnDanger");
+    else if(userRisk.level==="ALERT") box.classList.add("warnAlert");
+    else box.classList.add("warnSafe");
+
+    box.innerHTML=`${getUserWarning(userRisk.level)}<br>${userShortLocation}<br>Risk: ${userRisk.risk_score}/100 | ${forecastNames[currentForecast]}`;
+    box.style.display="block";
+
+    if(userMarker){
+        userMarker.bindPopup(`${userShortLocation}<br>${getUserWarning(userRisk.level)}`).openPopup();
+    }
+}
+
 async function loadPlaceName(lat, lon){
     const url=`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=en`;
     const response=await fetch(url,{headers:{"User-Agent":"AI-Heat-Risk-Demo/1.0"}});
     const data=await response.json();
-    const shortLocation = data.display_name ? data.display_name.split(",").slice(0,3).join(",") : "Current location";
+
+    userShortLocation = data.display_name ? data.display_name.split(",").slice(0,3).join(",") : "Current location";
+
     if(userMarker){
-      userMarker.bindPopup(shortLocation).openPopup();
+      userMarker.bindPopup(userShortLocation).openPopup();
     }
 
     document.getElementById("placeBox").innerHTML=
         `<b>Current Location:</b><br>${data.display_name || "Unknown location"}<br>
         <span class="small">Lat: ${lat.toFixed(5)}<br>Lon: ${lon.toFixed(5)}</span>`;
+}
+
+function interpolate(v1, v2, ratio){
+    return v1 + (v2-v1)*ratio;
 }
 
 async function fetchWeather(lat, lon){
@@ -326,42 +392,55 @@ async function fetchWeather(lat, lon){
     const data=await response.json();
 
     const now = new Date();
-    const currentHour = now.getHours();
 
-    let startIndex = 0;
-    for(let i=0; i<data.hourly.time.length; i++){
-        const forecastTime = new Date(data.hourly.time[i]);
-        if(forecastTime.getHours() >= currentHour){
-            startIndex = i;
-            break;
+    const resultTime=[];
+    const resultTemp=[];
+    const resultHumidity=[];
+    const resultApparent=[];
+
+    for(let step=0; step<=12; step++){
+        const targetTime = new Date(now.getTime() + step*30*60*1000);
+
+        let beforeIndex=0;
+        for(let i=0; i<data.hourly.time.length-1; i++){
+            const t1=new Date(data.hourly.time[i]);
+            const t2=new Date(data.hourly.time[i+1]);
+            if(targetTime>=t1 && targetTime<=t2){
+                beforeIndex=i;
+                break;
+            }
         }
+
+        const t1=new Date(data.hourly.time[beforeIndex]);
+        const t2=new Date(data.hourly.time[beforeIndex+1]);
+        const ratio=(targetTime-t1)/(t2-t1);
+
+        resultTime.push(targetTime.toISOString());
+
+        resultTemp.push(Number(interpolate(
+            data.hourly.temperature_2m[beforeIndex],
+            data.hourly.temperature_2m[beforeIndex+1],
+            ratio
+        ).toFixed(1)));
+
+        resultHumidity.push(Math.round(interpolate(
+            data.hourly.relative_humidity_2m[beforeIndex],
+            data.hourly.relative_humidity_2m[beforeIndex+1],
+            ratio
+        )));
+
+        resultApparent.push(Number(interpolate(
+            data.hourly.apparent_temperature[beforeIndex],
+            data.hourly.apparent_temperature[beforeIndex+1],
+            ratio
+        ).toFixed(1)));
     }
 
     cachedWeather={
-        time:[
-            data.hourly.time[startIndex],
-            data.hourly.time[startIndex+2],
-            data.hourly.time[startIndex+4],
-            data.hourly.time[startIndex+6]
-        ],
-        temperature:[
-            data.hourly.temperature_2m[startIndex],
-            data.hourly.temperature_2m[startIndex+2],
-            data.hourly.temperature_2m[startIndex+4],
-            data.hourly.temperature_2m[startIndex+6]
-        ],
-        humidity:[
-            data.hourly.relative_humidity_2m[startIndex],
-            data.hourly.relative_humidity_2m[startIndex+2],
-            data.hourly.relative_humidity_2m[startIndex+4],
-            data.hourly.relative_humidity_2m[startIndex+6]
-        ],
-        apparent_temperature:[
-            data.hourly.apparent_temperature[startIndex],
-            data.hourly.apparent_temperature[startIndex+2],
-            data.hourly.apparent_temperature[startIndex+4],
-            data.hourly.apparent_temperature[startIndex+6]
-        ]
+        time:resultTime,
+        temperature:resultTemp,
+        humidity:resultHumidity,
+        apparent_temperature:resultApparent
     };
 
     forecastNames = cachedWeather.time.map(t => {
@@ -371,6 +450,7 @@ async function fetchWeather(lat, lon){
 
     document.getElementById("forecastSlider").max = forecastNames.length - 1;
     document.getElementById("forecastSlider").value = 0;
+    currentForecast=0;
     document.getElementById("forecastLabel").innerText = forecastNames[0];
 }
 
@@ -423,6 +503,8 @@ async function loadStreets(lat, lon){
     if(!cachedWeather){
         await fetchWeather(lat, lon);
     }
+
+    updateUserWarning();
 
     const data=await fetchStreets(lat, lon);
 
@@ -484,6 +566,7 @@ async function loadStreets(lat, lon){
 function changeForecast(value){ 
     currentForecast=Number(value); 
     document.getElementById("forecastLabel").innerText=forecastNames[currentForecast]; 
+    updateUserWarning();
     if(lastLat!==null && lastLon!==null){ 
         loadStreets(lastLat,lastLon); 
     } 
@@ -492,6 +575,7 @@ function changeForecast(value){
 async function getRisk(){
     document.getElementById("result").innerHTML="Getting location...";
     document.getElementById("placeBox").innerHTML="Getting real place name...";
+    document.getElementById("userWarning").style.display="none";
     updateAgentPanel();
 
     navigator.geolocation.getCurrentPosition(async function(position){
