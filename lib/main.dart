@@ -17,6 +17,10 @@ class HeatRiskApp extends StatelessWidget {
     return MaterialApp(
       title: 'AI Heat Risk Warning',
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.orange,
+        useMaterial3: true,
+      ),
       home: const HeatRiskWebView(),
     );
   }
@@ -69,529 +73,899 @@ const String _html = r'''
 <head>
   <title>AI Heat Risk Warning</title>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <style>
-    body {
-      font-family: 'Roboto', sans-serif;
-      background: #f0f3f8;
+    * {
       margin: 0;
       padding: 0;
+      box-sizing: border-box;
     }
 
-    .app {
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #ff7e5f;
+      border-radius: 10px;
+    }
+
+    /* Main Container */
+    .app-container {
       max-width: 550px;
-      margin: 20px auto;
-      background: #ffffff;
-      border-radius: 20px;
-      padding: 20px;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+      margin: 0 auto;
+      padding: 16px;
+      padding-bottom: 30px;
     }
 
-    h2 {
-      background: linear-gradient(90deg, #ff7e5f, #feb47b);
+    /* Header Section */
+    .header {
+      background: rgba(255,255,255,0.95);
+      border-radius: 28px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 20px 35px -10px rgba(0,0,0,0.2);
+      backdrop-filter: blur(10px);
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #ff6b6b, #ff8e53);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      font-size: 26px;
-      margin-bottom: 5px;
+      background-clip: text;
+      margin-bottom: 4px;
     }
 
-    p.description {
-      font-size: 14px;
-      color: #555;
-      margin-top: 0;
+    .header p {
+      color: #666;
+      font-size: 13px;
+      font-weight: 500;
     }
 
-    button {
-      width: 100%;
-      padding: 14px;
-      background: #ff7e5f;
-      color: white;
-      border: none;
-      border-radius: 12px;
-      font-size: 16px;
-      margin-top: 15px;
+    /* Blinking Warning Card */
+    .warning-card {
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border-radius: 20px;
+      padding: 18px;
+      margin-bottom: 16px;
+      position: relative;
+      overflow: hidden;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: transform 0.3s ease;
     }
 
-    button:hover {
-      background: #feb47b;
+    .warning-card:hover {
       transform: translateY(-2px);
     }
 
-    .map-wrap {
-      position: relative;
+    .warning-card.blinking {
+      animation: pulseGlow 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7);
+        border-left: 4px solid #ff6b6b;
+      }
+      50% {
+        box-shadow: 0 0 0 12px rgba(255, 107, 107, 0);
+        border-left: 4px solid #ffd93d;
+      }
+    }
+
+    .warning-card.safe {
+      background: linear-gradient(135deg, #1b4332, #2d6a4f);
+    }
+
+    .warning-card.alert {
+      background: linear-gradient(135deg, #e85d04, #f48c06);
+    }
+
+    .warning-card.danger {
+      background: linear-gradient(135deg, #9d0208, #dc2f02);
+      animation: pulseGlow 1s ease-in-out infinite;
+    }
+
+    .warning-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .warning-icon {
+      font-size: 32px;
+    }
+
+    .warning-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: white;
+    }
+
+    .warning-message {
+      color: rgba(255,255,255,0.95);
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+
+    .warning-location {
+      color: rgba(255,255,255,0.8);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .risk-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: white;
+      margin-top: 8px;
+    }
+
+    /* Map Container */
+    .map-section {
+      background: rgba(255,255,255,0.95);
+      border-radius: 24px;
+      padding: 12px;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
+
+    .map-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding: 0 8px;
+    }
+
+    .map-title h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #333;
+    }
+
+    .map-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .mode-btn {
+      padding: 6px 14px;
+      border: none;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #f0f0f0;
+      color: #666;
+    }
+
+    .mode-btn.active {
+      background: #ff7e5f;
+      color: white;
     }
 
     #map {
-      height: 400px;
-      border-radius: 15px;
-      margin-top: 20px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-      border: 2px solid #ff7e5f33;
+      height: 380px;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
 
-    #userWarning {
-      position: absolute;
-      top: 32px;
-      left: 12px;
-      right: 12px;
-      z-index: 999;
-      padding: 12px;
-      border-radius: 14px;
-      color: white;
+    /* Control Panel */
+    .control-panel {
+      background: rgba(255,255,255,0.95);
+      border-radius: 24px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
+
+    .slider-container {
+      margin-bottom: 16px;
+    }
+
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
       font-size: 13px;
-      font-weight: bold;
-      box-shadow: 0 4px 18px rgba(0,0,0,0.25);
-      display: none;
-    }
-
-    .warnSafe { background: #4caf50; }
-    .warnAlert { background: #ffa500; }
-    .warnDanger { background: #ff4b4b; }
-
-    .slider-box {
-      margin-top: 15px;
-      padding: 12px;
-      background: #f7f7f7;
-      border-radius: 12px;
+      font-weight: 600;
+      color: #555;
     }
 
     input[type="range"] {
       width: 100%;
+      height: 6px;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #4caf50, #ffa500, #ff4b4b);
+      -webkit-appearance: none;
     }
 
-    .agents {
+    input[type="range"]:focus {
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #ff7e5f;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      border: 2px solid white;
+    }
+
+    #forecastValue {
+      font-weight: 700;
+      color: #ff7e5f;
+    }
+
+    /* Location Card */
+    .location-card {
+      background: #f8f9fa;
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 16px;
+    }
+
+    .location-card h4 {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .location-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: #333;
+      word-break: break-word;
+    }
+
+    /* Destination Search */
+    .destination-card {
+      background: white;
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 16px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .search-box {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .search-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid #ddd;
+      border-radius: 25px;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: #ff7e5f;
+      box-shadow: 0 0 0 2px rgba(255,126,95,0.2);
+    }
+
+    .search-btn, .route-btn {
+      padding: 10px 20px;
+      background: #ff7e5f;
+      color: white;
+      border: none;
+      border-radius: 25px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .search-btn:hover, .route-btn:hover {
+      background: #feb47b;
+      transform: translateY(-1px);
+    }
+
+    .route-btn {
+      width: 100%;
+      margin-top: 10px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+    }
+
+    .suggestions {
+      max-height: 200px;
+      overflow-y: auto;
+      background: white;
+      border-radius: 12px;
+      margin-top: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .suggestion-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .suggestion-item:hover {
+      background: #f5f5f5;
+    }
+
+    /* Agents Grid */
+    .agents-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-top: 20px;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 12px;
     }
 
-    .agent {
-      background: #eef2ff;
+    .agent-card {
+      background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
       padding: 12px;
       border-radius: 14px;
-      font-size: 13px;
       position: relative;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      transition: all 0.3s ease;
     }
 
-    .agent::after {
-      content: "";
+    .agent-card.active {
+      background: linear-gradient(135deg, #ff7e5f, #feb47b);
+      color: white;
+      transform: scale(1.02);
+    }
+
+    .agent-name {
+      font-weight: 700;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .agent-status {
+      font-size: 10px;
+      opacity: 0.8;
+    }
+
+    .agent-dot {
       position: absolute;
-      top: 12px;
-      right: 12px;
-      width: 10px;
-      height: 10px;
+      top: 10px;
+      right: 10px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background: #4caf50;
-      animation: blink 1.2s infinite;
+      animation: blink 1s infinite;
     }
 
     @keyframes blink {
-      0%, 50%, 100% { opacity: 1; }
-      25%, 75% { opacity: 0; }
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
     }
 
-    #placeBox {
-      background: #f9f9f9;
-      padding: 14px;
+    /* Results */
+    .results-container {
+      background: rgba(255,255,255,0.95);
+      border-radius: 24px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+
+    .results-container h3 {
+      font-size: 16px;
+      margin-bottom: 12px;
+      color: #333;
+    }
+
+    .street-card {
+      background: white;
       border-radius: 14px;
-      margin-top: 15px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      font-size: 14px;
-    }
-
-    .card {
       padding: 14px;
-      border-radius: 14px;
-      background: #fdfdfd;
-      margin-top: 12px;
-      box-shadow: 0 6px 16px rgba(0,0,0,0.05);
-      border-left: 6px solid;
+      margin-bottom: 10px;
+      border-left: 5px solid;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      transition: transform 0.2s;
     }
 
-    .DANGER { border-color: #ff4b4b; }
-    .ALERT { border-color: #ffa500; }
-    .SAFE { border-color: #4caf50; }
+    .street-card:hover {
+      transform: translateX(4px);
+    }
 
-    .small { font-size: 12px; color: #555; }
+    .street-card.DANGER { border-color: #ff4b4b; }
+    .street-card.ALERT { border-color: #ffa500; }
+    .street-card.SAFE { border-color: #4caf50; }
+
+    .street-name {
+      font-weight: 700;
+      font-size: 15px;
+      margin-bottom: 6px;
+    }
+
+    .street-details {
+      font-size: 12px;
+      color: #666;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 6px;
+    }
+
+    .route-info {
+      background: #e8f4f8;
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 10px;
+    }
+
+    .best-route {
+      background: linear-gradient(135deg, #2ecc71, #27ae60);
+      color: white;
+      padding: 12px;
+      border-radius: 12px;
+      margin-top: 10px;
+      font-weight: 600;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #888;
+    }
   </style>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-color-markers@1.2.0/js/leaflet-color-markers.min.js"></script>
 </head>
 
 <body>
-<div class="app">
-  <center><h2>AI Heat Risk Warning</h2></center>
-  <center><p class="description">Real weather + GPS location + real place names + live nearby streets</p></center>
-
-  <button onclick="getRisk()">Check My Heat Risk</button>
-
-  <div class="slider-box">
-    <b>Forecast Time:</b>
-    <p id="forecastLabel">Now</p>
-    <input type="range" min="0" max="12" value="0" id="forecastSlider" onchange="changeForecast(this.value)">
+<div class="app-container">
+  <!-- Header -->
+  <div class="header">
+    <h1>🌡️ AI Heat Risk</h1>
+    <p>Real-time thermal mapping & intelligent route planning</p>
   </div>
 
-  <div id="placeBox">Location not checked yet.</div>
+  <!-- Blinking Warning Card -->
+  <div id="warningCard" class="warning-card blinking safe" onclick="refreshRisk()">
+    <div class="warning-header">
+      <span class="warning-icon" id="warningIcon">✅</span>
+      <span class="warning-title" id="warningTitle">Safe Zone</span>
+    </div>
+    <div class="warning-message" id="warningMessage">
+      Tap to check your current heat risk level
+    </div>
+    <div class="warning-location">
+      <span>📍</span>
+      <span id="warningLocation">--</span>
+    </div>
+    <div class="risk-badge" id="riskBadge">Risk Score: --</div>
+  </div>
 
-  <div class="map-wrap">
-    <div id="userWarning"></div>
+  <!-- Map Section -->
+  <div class="map-section">
+    <div class="map-title">
+      <h3>🗺️ Heat Map</h3>
+      <div class="map-buttons">
+        <button class="mode-btn active" id="nearbyBtn" onclick="setMapMode('nearby')">Nearby</button>
+        <button class="mode-btn" id="routesBtn" onclick="setMapMode('routes')">Routes</button>
+      </div>
+    </div>
     <div id="map"></div>
   </div>
 
-  <center><h3>AI Agent System</h3></center>
-  <div class="agents" id="agents"></div>
+  <!-- Control Panel -->
+  <div class="control-panel">
+    <div class="slider-container">
+      <div class="slider-label">
+        <span>⏰ Forecast Time</span>
+        <span id="forecastValue">Now</span>
+      </div>
+      <input type="range" id="forecastSlider" min="0" max="12" value="0" oninput="updateForecast(this.value)">
+    </div>
 
-  <center><h3>Street Risk Results</h3></center>
-  <div id="result"></div>
+    <button class="search-btn" style="width:100%; margin-top:5px;" onclick="refreshRisk()">
+      🔄 Refresh Data
+    </button>
+  </div>
+
+  <!-- Location Info -->
+  <div class="location-card">
+    <h4>📍 CURRENT LOCATION</h4>
+    <div class="location-name" id="locationName">Tap refresh to get location</div>
+  </div>
+
+  <!-- Destination Search (for route mode) -->
+  <div class="destination-card" id="destinationCard">
+    <h4 style="margin-bottom:10px;">🎯 Plan a Cool Route</h4>
+    <div class="search-box">
+      <input type="text" class="search-input" id="destinationInput" placeholder="Enter destination (e.g., Central Park, Times Square)">
+      <button class="search-btn" onclick="searchLocation()">Search</button>
+    </div>
+    <div id="suggestions" class="suggestions hidden"></div>
+    <button class="route-btn" id="findRouteBtn" onclick="findCoolRoutes()" style="display:none;">🌿 Find Coolest Routes</button>
+  </div>
+
+  <!-- AI Agents -->
+  <div class="control-panel">
+    <h4 style="margin-bottom:12px;">🤖 AI Agent Network</h4>
+    <div class="agents-grid" id="agentsGrid"></div>
+  </div>
+
+  <!-- Results -->
+  <div class="results-container" id="resultsContainer">
+    <h3>📊 Street Heat Analysis</h3>
+    <div id="resultsContent">Waiting for location data...</div>
+  </div>
 </div>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
 <script>
-let map, userMarker, streetMarkers=[], currentForecast=0, lastLat=null, lastLon=null;
-let forecastNames=["Now"];
-let cachedWeather=null;
-let userShortLocation="Current location";
+// Global variables
+let map, userMarker, userCircle, heatLayer;
+let currentMode = 'nearby';
+let currentLat = null, currentLon = null;
+let destinationLat = null, destinationLon = null;
+let destinationName = '';
+let cachedWeather = null;
+let currentForecast = 0;
+let forecastNames = [];
+let streetMarkers = [];
+let routeMarkers = [];
+let currentRoutes = [];
 
-function initMap(lat, lon){
-    if(!map){
-        map=L.map("map").setView([lat, lon],15);
-        L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",{
-            attribution:"Tiles &copy; Esri", maxZoom:16
-        }).addTo(map);
-        userMarker=L.marker([lat,lon]).addTo(map).bindPopup("Loading location...").openPopup();
-    } else { 
-        map.setView([lat,lon],15); 
-        userMarker.setLatLng([lat,lon]); 
+// Initialize map
+function initMap(lat, lon) {
+  if (!map) {
+    map = L.map("map").setView([lat, lon], 14);
+    
+    // Base tile layer with English labels
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CartoDB',
+      subdomains: 'abcd',
+      maxZoom: 19,
+      minZoom: 3
+    }).addTo(map);
+  } else {
+    map.setView([lat, lon], 14);
+  }
+  
+  // Update or create user marker with colored circle
+  if (userMarker) {
+    userMarker.setLatLng([lat, lon]);
+  } else {
+    userMarker = L.marker([lat, lon], {
+      icon: L.divIcon({
+        className: 'custom-div-icon',
+        html: '<div style="background-color:#ff7e5f; width:20px; height:20px; border-radius:50%; border:3px solid white; box-shadow:0 0 10px rgba(0,0,0,0.3);"></div>',
+        iconSize: [20, 20],
+        popupAnchor: [0, -10]
+      })
+    }).addTo(map).bindPopup('<b>You are here</b><br>Tap refresh for heat data');
+  }
+  
+  // Add colored circle around user based on risk
+  updateUserCircle(lat, lon);
+}
+
+function updateUserCircle(lat, lon) {
+  if (userCircle) map.removeLayer(userCircle);
+  
+  // Get current risk level for user
+  let color = '#4caf50'; // default green
+  let radius = 80;
+  
+  if (cachedWeather) {
+    const temp = cachedWeather.temperature[currentForecast];
+    const risk = calculateRiskScore(temp);
+    if (risk >= 70) color = '#ff4b4b';
+    else if (risk >= 40) color = '#ffa500';
+    else color = '#4caf50';
+    radius = 60 + (risk / 2);
+  }
+  
+  userCircle = L.circle([lat, lon], {
+    radius: radius,
+    color: color,
+    fillColor: color,
+    fillOpacity: 0.3,
+    weight: 2,
+    opacity: 0.8
+  }).addTo(map).bindPopup('Your heat zone');
+}
+
+// Calculate risk score from temperature
+function calculateRiskScore(temp) {
+  if (temp >= 35) return 90;
+  if (temp >= 30) return 70;
+  if (temp >= 25) return 45;
+  if (temp >= 20) return 25;
+  return 10;
+}
+
+// Get color for temperature
+function getTempColor(temp) {
+  if (temp >= 35) return '#d73027';
+  if (temp >= 30) return '#fc8d59';
+  if (temp >= 25) return '#fee08b';
+  if (temp >= 20) return '#d9ef8b';
+  return '#a6d96a';
+}
+
+// Update heat overlay on map
+function updateHeatOverlay() {
+  if (heatLayer) map.removeLayer(heatLayer);
+  
+  if (!currentLat || !currentLon || !cachedWeather) return;
+  
+  const temp = cachedWeather.temperature[currentForecast];
+  const radius = 300;
+  
+  heatLayer = L.circle([currentLat, currentLon], {
+    radius: radius,
+    color: getTempColor(temp),
+    fillColor: getTempColor(temp),
+    fillOpacity: 0.4,
+    weight: 1,
+    opacity: 0.6
+  }).addTo(map);
+  
+  // Add surrounding heat points
+  const offsets = [[0.003, 0], [-0.003, 0], [0, 0.003], [0, -0.003], [0.002, 0.002], [-0.002, -0.002]];
+  offsets.forEach(offset => {
+    const heatCircle = L.circle([currentLat + offset[0], currentLon + offset[1]], {
+      radius: radius * 0.7,
+      color: getTempColor(temp - 2),
+      fillColor: getTempColor(temp - 2),
+      fillOpacity: 0.3,
+      weight: 0
+    }).addTo(map);
+    // Store for cleanup
+    if (!window.heatCircles) window.heatCircles = [];
+    window.heatCircles.push(heatCircle);
+  });
+}
+
+// Update warning card with blinking effect
+function updateWarningCard(riskLevel, riskScore, location, message) {
+  const card = document.getElementById('warningCard');
+  const icon = document.getElementById('warningIcon');
+  const title = document.getElementById('warningTitle');
+  const warningMsg = document.getElementById('warningMessage');
+  const locationSpan = document.getElementById('warningLocation');
+  const riskBadge = document.getElementById('riskBadge');
+  
+  // Reset classes
+  card.className = 'warning-card';
+  
+  if (riskLevel === 'DANGER') {
+    card.classList.add('danger');
+    icon.innerHTML = '🔥';
+    title.innerHTML = 'DANGER - High Heat Risk';
+    warningMsg.innerHTML = message || '⚠️ Avoid outdoor exposure! Stay hydrated, seek shade.';
+  } else if (riskLevel === 'ALERT') {
+    card.classList.add('alert');
+    icon.innerHTML = '⚠️';
+    title.innerHTML = 'ALERT - Moderate Heat Risk';
+    warningMsg.innerHTML = message || 'Take precautions, use sunscreen, limit sun exposure.';
+  } else {
+    card.classList.add('safe');
+    icon.innerHTML = '✅';
+    title.innerHTML = 'SAFE - Low Heat Risk';
+    warningMsg.innerHTML = message || 'Conditions are favorable. Stay hydrated.';
+  }
+  
+  locationSpan.innerHTML = location || '--';
+  riskBadge.innerHTML = `Risk Score: ${riskScore}/100`;
+  
+  // Add blinking effect for danger
+  if (riskLevel === 'DANGER') {
+    card.style.animation = 'pulseGlow 1s ease-in-out infinite';
+  } else {
+    card.style.animation = '';
+  }
+}
+
+// Fetch weather data
+async function fetchWeather(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,apparent_temperature&forecast_days=1&timezone=auto`;
+  const response = await fetch(url);
+  const data = await response.json();
+  
+  const now = new Date();
+  const resultTemp = [];
+  const resultHumidity = [];
+  const resultApparent = [];
+  const resultTime = [];
+  
+  for (let step = 0; step <= 12; step++) {
+    const targetTime = new Date(now.getTime() + step * 30 * 60 * 1000);
+    let beforeIndex = 0;
+    
+    for (let i = 0; i < data.hourly.time.length - 1; i++) {
+      const t1 = new Date(data.hourly.time[i]);
+      const t2 = new Date(data.hourly.time[i + 1]);
+      if (targetTime >= t1 && targetTime <= t2) {
+        beforeIndex = i;
+        break;
+      }
     }
+    
+    const t1 = new Date(data.hourly.time[beforeIndex]);
+    const t2 = new Date(data.hourly.time[beforeIndex + 1]);
+    const ratio = (targetTime - t1) / (t2 - t1);
+    
+    resultTime.push(targetTime);
+    resultTemp.push(Number((data.hourly.temperature_2m[beforeIndex] + 
+      (data.hourly.temperature_2m[beforeIndex + 1] - data.hourly.temperature_2m[beforeIndex]) * ratio).toFixed(1)));
+    resultHumidity.push(Math.round(data.hourly.relative_humidity_2m[beforeIndex] + 
+      (data.hourly.relative_humidity_2m[beforeIndex + 1] - data.hourly.relative_humidity_2m[beforeIndex]) * ratio));
+    resultApparent.push(Number((data.hourly.apparent_temperature[beforeIndex] + 
+      (data.hourly.apparent_temperature[beforeIndex + 1] - data.hourly.apparent_temperature[beforeIndex]) * ratio).toFixed(1)));
+  }
+  
+  cachedWeather = {
+    temperature: resultTemp,
+    humidity: resultHumidity,
+    apparent_temperature: resultApparent,
+    time: resultTime
+  };
+  
+  forecastNames = resultTime.map(t => {
+    return t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  });
+  
+  document.getElementById('forecastSlider').max = forecastNames.length - 1;
+  document.getElementById('forecastValue').innerText = forecastNames[0];
 }
 
-function updateAgentPanel(){
-    const agents=[
-        ["Heat Sensor Agent","Fetching real Open-Meteo weather"],
-        ["Surface Scanner Agent","Reading real OSM streets"],
-        ["People Tracker Agent","Estimating street exposure"],
-        ["Risk Calculator Agent","Calculating heat danger score"],
-        ["Alert Agent","Preparing safety warning"],
-        ["Self Learning Agent","Ready for future data"]
-    ];
-    let html="";
-    agents.forEach(a=>html+=`<div class="agent"><b>${a[0]}</b><br>${a[1]}</div>`);
-    document.getElementById("agents").innerHTML=html;
+// Get location name from coordinates
+async function getLocationName(lat, lon) {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=en`;
+  const response = await fetch(url, {
+    headers: { "User-Agent": "AI-Heat-Risk-Demo/1.0" }
+  });
+  const data = await response.json();
+  return data.display_name || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 }
 
-function getColor(level){ 
-    return level==="DANGER"?"#ff4b4b":level==="ALERT"?"#ffa500":"#4caf50"; 
+// Search for location
+async function searchLocation() {
+  const query = document.getElementById('destinationInput').value.trim();
+  if (!query) return;
+  
+  const suggestionsDiv = document.getElementById('suggestions');
+  suggestionsDiv.classList.remove('hidden');
+  suggestionsDiv.innerHTML = '<div class="loading">Searching...</div>';
+  
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&accept-language=en`;
+  const response = await fetch(url, {
+    headers: { "User-Agent": "AI-Heat-Risk-Demo/1.0" }
+  });
+  const data = await response.json();
+  
+  if (data.length === 0) {
+    suggestionsDiv.innerHTML = '<div class="suggestion-item">No results found</div>';
+    return;
+  }
+  
+  suggestionsDiv.innerHTML = data.map(place => `
+    <div class="suggestion-item" onclick="selectDestination('${place.lat}', '${place.lon}', '${place.display_name.replace(/'/g, "\\'")}')">
+      <strong>${place.display_name.split(',')[0]}</strong><br>
+      <small>${place.display_name}</small>
+    </div>
+  `).join('');
 }
 
-function highwayToSurface(highway){
-    const concrete=["motorway","trunk","primary","secondary","tertiary","unclassified"];
-    const mixed=["residential","service","living_street","pedestrian","footway","cycleway"];
-    if(concrete.includes(highway)) return "Road / Concrete";
-    if(mixed.includes(highway)) return "Mixed Area";
-    return "Park / Trees";
+function selectDestination(lat, lon, name) {
+  destinationLat = parseFloat(lat);
+  destinationLon = parseFloat(lon);
+  destinationName = name;
+  
+  document.getElementById('destinationInput').value = name.split(',')[0];
+  document.getElementById('suggestions').classList.add('hidden');
+  document.getElementById('findRouteBtn').style.display = 'block';
+  
+  // Show destination marker
+  if (window.destMarker) map.removeLayer(window.destMarker);
+  window.destMarker = L.marker([destinationLat, destinationLon], {
+    icon: L.divIcon({
+      className: 'custom-div-icon',
+      html: '<div style="background-color:#667eea; width:16px; height:16px; border-radius:50%; border:2px solid white;"></div>',
+      iconSize: [16, 16]
+    })
+  }).addTo(map).bindPopup(`<b>Destination</b><br>${name}`);
 }
 
-function getSurfaceScore(surface){
-    if(surface==="Road / Concrete") return 30;
-    if(surface==="Mixed Area") return 18;
-    if(surface==="Park / Trees") return 6;
-    return 15;
+// Find cool routes
+async function findCoolRoutes() {
+  if (!currentLat || !currentLon || !destinationLat || !destinationLon) {
+    alert('Please set both current location and destination');
+    return;
+  }
+  
+  document.getElementById('resultsContent').innerHTML = '<div class="loading">🌿 Finding coolest routes...</div>';
+  
+  // Generate 3 different routes
+  const routes = generateRoutes();
+  currentRoutes = routes;
+  
+  // Display route options
+  displayRouteOptions(routes);
 }
 
-function calculateRisk(temp, humidity, apparentTemp, surfaceScore){
-    const tempScore=Math.max(0,(temp-24)*3);
-    const humidityScore=Math.max(0,(humidity-55)*0.35);
-    const feelsLikeScore=Math.max(0,(apparentTemp-27)*2);
-    let riskScore=Math.round(tempScore+humidityScore+feelsLikeScore+surfaceScore);
-    riskScore=Math.max(0,Math.min(100,riskScore));
-
-    if(riskScore>=70){
-        return {
-            risk_score:riskScore,
-            level:"DANGER",
-            advice:"Avoid outdoor exposure and use shaded routes."
-        };
-    }
-    if(riskScore>=40){
-        return {
-            risk_score:riskScore,
-            level:"ALERT",
-            advice:"Take precautions, stay hydrated, and avoid long exposure."
-        };
-    }
-    return {
-        risk_score:riskScore,
-        level:"SAFE",
-        advice:"Area is safe for outdoor activity."
-    };
-}
-
-function getUserWarning(level){
-    if(level==="DANGER"){
-        return "🚨 DANGER: If possible do not go out. Drink water, use sunscreen cream, stay in shade, and avoid hot streets.";
-    }
-    if(level==="ALERT"){
-        return "⚠️ ALERT: Drink water, take umbrella, use sunscreen cream, and reduce outdoor exposure.";
-    }
-    return "✅ SAFE: Still drink water and use basic sun protection.";
-}
-
-function updateUserWarning(){
-    if(!cachedWeather) return;
-
-    const temp=cachedWeather.temperature[currentForecast];
-    const humidity=cachedWeather.humidity[currentForecast];
-    const apparentTemp=cachedWeather.apparent_temperature[currentForecast];
-
-    const userRisk=calculateRisk(temp,humidity,apparentTemp,18);
-    const box=document.getElementById("userWarning");
-
-    box.className="";
-    if(userRisk.level==="DANGER") box.classList.add("warnDanger");
-    else if(userRisk.level==="ALERT") box.classList.add("warnAlert");
-    else box.classList.add("warnSafe");
-
-    box.innerHTML=`${getUserWarning(userRisk.level)}<br>${userShortLocation}<br>Risk: ${userRisk.risk_score}/100 | ${forecastNames[currentForecast]}`;
-    box.style.display="block";
-
-    if(userMarker){
-        userMarker.bindPopup(`${userShortLocation}<br>${getUserWarning(userRisk.level)}`).openPopup();
-    }
-}
-
-async function loadPlaceName(lat, lon){
-    const url=`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=en`;
-    const response=await fetch(url,{headers:{"User-Agent":"AI-Heat-Risk-Demo/1.0"}});
-    const data=await response.json();
-
-    userShortLocation = data.display_name ? data.display_name.split(",").slice(0,3).join(",") : "Current location";
-
-    if(userMarker){
-      userMarker.bindPopup(userShortLocation).openPopup();
-    }
-
-    document.getElementById("placeBox").innerHTML=
-        `<b>Current Location:</b><br>${data.display_name || "Unknown location"}<br>
-        <span class="small">Lat: ${lat.toFixed(5)}<br>Lon: ${lon.toFixed(5)}</span>`;
-}
-
-function interpolate(v1, v2, ratio){
-    return v1 + (v2-v1)*ratio;
-}
-
-async function fetchWeather(lat, lon){
-    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,apparent_temperature&forecast_days=1&timezone=auto`;
-    const response=await fetch(url);
-    const data=await response.json();
-
-    const now = new Date();
-
-    const resultTime=[];
-    const resultTemp=[];
-    const resultHumidity=[];
-    const resultApparent=[];
-
-    for(let step=0; step<=12; step++){
-        const targetTime = new Date(now.getTime() + step*30*60*1000);
-
-        let beforeIndex=0;
-        for(let i=0; i<data.hourly.time.length-1; i++){
-            const t1=new Date(data.hourly.time[i]);
-            const t2=new Date(data.hourly.time[i+1]);
-            if(targetTime>=t1 && targetTime<=t2){
-                beforeIndex=i;
-                break;
-            }
-        }
-
-        const t1=new Date(data.hourly.time[beforeIndex]);
-        const t2=new Date(data.hourly.time[beforeIndex+1]);
-        const ratio=(targetTime-t1)/(t2-t1);
-
-        resultTime.push(targetTime.toISOString());
-
-        resultTemp.push(Number(interpolate(
-            data.hourly.temperature_2m[beforeIndex],
-            data.hourly.temperature_2m[beforeIndex+1],
-            ratio
-        ).toFixed(1)));
-
-        resultHumidity.push(Math.round(interpolate(
-            data.hourly.relative_humidity_2m[beforeIndex],
-            data.hourly.relative_humidity_2m[beforeIndex+1],
-            ratio
-        )));
-
-        resultApparent.push(Number(interpolate(
-            data.hourly.apparent_temperature[beforeIndex],
-            data.hourly.apparent_temperature[beforeIndex+1],
-            ratio
-        ).toFixed(1)));
-    }
-
-    cachedWeather={
-        time:resultTime,
-        temperature:resultTemp,
-        humidity:resultHumidity,
-        apparent_temperature:resultApparent
-    };
-
-    forecastNames = cachedWeather.time.map(t => {
-        const d = new Date(t);
-        return d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    });
-
-    document.getElementById("forecastSlider").max = forecastNames.length - 1;
-    document.getElementById("forecastSlider").value = 0;
-    currentForecast=0;
-    document.getElementById("forecastLabel").innerText = forecastNames[0];
-}
-
-async function fetchStreets(lat, lon){
-    const query=`[out:json][timeout:25];way["highway"](around:900,${lat},${lon});out center tags;`;
-    const response=await fetch("https://overpass-api.de/api/interpreter",{
-        method:"POST",
-        headers:{"Content-Type":"application/x-www-form-urlencoded","User-Agent":"AI-Heat-Risk-Demo/1.0"},
-        body:"data="+encodeURIComponent(query)
-    });
-    const data=await response.json();
-
-    const seen=new Set();
-    const streets=[];
-
-    for(const element of data.elements || []){
-        const tags=element.tags;
-        const center=element.center;
-        if(!tags || !center) continue;
-
-        const highway=tags.highway || "road";
-        const name=tags["name:en"] || tags.name || `Unnamed ${highway} road`;
-        const key=`${name}-${center.lat.toFixed(5)}-${center.lon.toFixed(5)}`;
-        if(seen.has(key)) continue;
-        seen.add(key);
-
-        streets.push({
-            name:name,
-            lat:center.lat,
-            lon:center.lon,
-            surface:highwayToSurface(highway),
-            highway_type:highway
-        });
-
-        if(streets.length>=20) break;
-    }
-
-    return {
-        source:"OpenStreetMap Overpass API",
-        count:streets.length,
-        streets:streets
-    };
-}
-
-async function loadStreets(lat, lon){
-    document.getElementById("result").innerHTML="Loading streets & heat risk...";
-    streetMarkers.forEach(m=>map.removeLayer(m));
-    streetMarkers=[];
-
-    if(!cachedWeather){
-        await fetchWeather(lat, lon);
-    }
-
-    updateUserWarning();
-
-    const data=await fetchStreets(lat, lon);
-
-    if(!data.streets || data.streets.length===0){
-        document.getElementById("result").innerHTML=`<div class="card">No nearby streets found.</div>`;
-        return;
-    }
-
-    let resultHtml=`<div class="card"><b>Source:</b> ${data.source}<br><b>Count:</b> ${data.count}</div>`;
-    let bounds=[[lat,lon]];
-
-    for(const street of data.streets){
-        const index=currentForecast;
-
-        const temp=cachedWeather.temperature[index];
-        const humidity=cachedWeather.humidity[index];
-        const apparentTemp=cachedWeather.apparent_temperature[index];
-        const time=cachedWeather.time[index];
-
-        const surfaceScore=getSurfaceScore(street.surface);
-        const riskData=calculateRisk(temp,humidity,apparentTemp,surfaceScore);
-
-        const item={
-            forecast:forecastNames[currentForecast],
-            time:time,
-            temperature:temp,
-            humidity:humidity,
-            apparent_temperature:apparentTemp,
-            risk_score:riskData.risk_score,
-            level:riskData.level,
-            advice:riskData.advice
-        };
-
-        const color=getColor(item.level);
-        bounds.push([street.lat,street.lon]);
-
-        const circle=L.circle([street.lat,street.lon],{
-            radius:20+item.risk_score,
-            color:color,
-            fillColor:color,
-            fillOpacity:0.4,
-            weight:3
-        })
-        .addTo(map)
-        .bindPopup(`<b>${street.name}</b><br>Road: ${street.highway_type}<br>Surface: ${street.surface}<br>${item.forecast}: ${item.level}<br>Risk: ${item.risk_score}/100<br>Temp: ${item.temperature}°C`);
-        streetMarkers.push(circle);
-
-        resultHtml+=`<div class="card ${item.level}"><h3>${street.name}: ${item.level}</h3>
-        <p><b>Road Type:</b> ${street.highway_type}</p><p><b>Surface:</b> ${street.surface}</p>
-        <p><b>Forecast:</b> ${item.forecast}</p><p><b>Time:</b> ${item.time}</p>
-        <p><b>Temp:</b> ${item.temperature}°C | <b>Humidity:</b> ${item.humidity}% | <b>Feels Like:</b> ${item.apparent_temperature}°C</p>
-        <p><b>Risk Score:</b> ${item.risk_score}/100</p><p>${item.advice}</p></div>`;
-    }
-
-    map.fitBounds(bounds,{padding:[35,35]});
-    document.getElementById("result").innerHTML=resultHtml;
-}
-
-function changeForecast(value){ 
-    currentForecast=Number(value); 
-    document.getElementById("forecastLabel").innerText=forecastNames[currentForecast]; 
-    updateUserWarning();
-    if(lastLat!==null && lastLon!==null){ 
-        loadStreets(lastLat,lastLon); 
-    } 
-}
-
-async function getRisk(){
-    document.getElementById("result").innerHTML="Getting location...";
-    document.getElementById("placeBox").innerHTML="Getting real place name...";
-    document.getElementById("userWarning").style.display="none";
-    updateAgentPanel();
-
-    navigator.geolocation.getCurrentPosition(async function(position){
-        lastLat=position.coords.latitude; 
-        lastLon=position.coords.longitude;
-        cachedWeather=null;
-        initMap(lastLat,lastLon);
-        await loadPlaceName(lastLat,lastLon);
-        await fetchWeather(lastLat,lastLon);
-        await loadStreets(lastLat,lastLon);
-    },function(){
-        document.getElementById("result").innerHTML="Location permission denied."; 
-        document.getElementById("placeBox").innerHTML="Location permission denied."; 
-    }, {enableHighAccuracy:true,timeout:15000,maximumAge:0});
-}
-</script>
-</body>
-</html>
-''';
+function generateRoutes() {
+  // Calculate direct route and two alternatives
+  const midLat = (currentLat + destinationLat) / 2;
+  const midLon = (currentLon + destinationLon) / 2;
+  const dx = destinationLon - currentLon;
+  const dy = destinationLat - currentLat;
+  
+  const routes = [];
+  
+  // Route 1: Direct
+  routes.push({
+    name: '🚶 Direct Route',
+    points: [currentLat, currentLon, destinationLat, destinationLon],
+    description: 'Shortest path but may have more sun exposure',
+    type: 'direct'
+  });
+  
+  // Route 2: Shaded (north)
+  const offset = 0.008;
+  const northPoint = [midLat + offset, midLon];
+  routes.push({
+    name: '🌳 Shaded Route',
+    points: [currentLat, currentLon, northPoint[0], northPoint[1], destinationLat, destinationLon],
+    description: 'Passes through potential shaded areas',
+    type: 'shaded'
+  });
+  
+  // Route 3: Park route
+  const parkPoint = [midLat - offset * 0.5, midLon + offset * 0.7];
+  routes.push({
+    name: '🏞️ Park Route',
+    points: [currentLat, currentLon, parkPoint[0], parkPoint[1], destinationLat, destinationLon],
+    description: 'Goes through greener areas with trees',
+    type: 'park'
+  });
+  
+  // Calculate heat scores for each route
+  routes.forEach(route => {
+    let totalTemp = 0;
+    const steps = Math.floor(route.points.length / 2);
+    for (let i = 0; i < steps; i++) {
+      const lat = route.points[i * 2];
+      const lon = route.points[i * 2 + 1];
+      // Estimate temperature based on position and current temp
