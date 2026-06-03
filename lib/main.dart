@@ -146,8 +146,8 @@ const String _html = r'''
     .loading { text-align: center; padding: 20px; color: #888; }
     button { cursor: pointer; }
     .refresh-btn { width: 100%; padding: 12px; background: #ff7e5f; color: white; border: none; border-radius: 25px; font-weight: 600; font-size: 14px; margin-top: 10px; }
-    .voice-indicator { position: fixed; bottom: 20px; right: 20px; background: #ff7e5f; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); animation: pulse 1.5s ease-in-out infinite; }
-    @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+    .voice-indicator { position: fixed; bottom: 20px; right: 20px; background: #ff7e5f; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); animation: pulseVoice 1.5s ease-in-out infinite; cursor: pointer; z-index: 1000; }
+    @keyframes pulseVoice { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
     .voice-indicator span { font-size: 24px; }
   </style>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -209,7 +209,7 @@ const String _html = r'''
   </div>
 </div>
 
-<div class="voice-indicator" id="voiceIndicator">
+<div class="voice-indicator" id="voiceIndicator" onclick="testVoice()">
   <span>🔊</span>
 </div>
 
@@ -218,16 +218,25 @@ let map, currentLat = null, currentLon = null;
 let cachedWeather = null, currentForecast = 0, forecastNames = [];
 let streetMarkers = [], cityName = '', countryName = '', fullAddress = '';
 
+function testVoice() {
+  speakMessage("Voice assistant active. Heat risk monitoring is running.");
+}
+
 function speakMessage(message) {
   if (window.TtsChannel) {
     window.TtsChannel.postMessage(message);
   } else {
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(message));
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      var utterance = new SpeechSynthesisUtterance(message);
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
   }
-  const voiceIndicator = document.getElementById('voiceIndicator');
-  voiceIndicator.style.animation = 'pulse 0.5s ease-in-out 3';
-  setTimeout(() => { voiceIndicator.style.animation = 'pulse 1.5s ease-in-out infinite'; }, 1500);
+  var voiceIndicator = document.getElementById('voiceIndicator');
+  voiceIndicator.style.animation = 'none';
+  setTimeout(function() { voiceIndicator.style.animation = 'pulseVoice 1.5s ease-in-out infinite'; }, 100);
 }
 
 function initMap(lat, lon) {
@@ -271,13 +280,13 @@ async function refreshData() {
     
     initMap(currentLat, currentLon);
     
-    const locationData = await getFullAddress(currentLat, currentLon);
+    var locationData = await getFullAddress(currentLat, currentLon);
     cityName = locationData.city;
     countryName = locationData.country;
     fullAddress = locationData.fullAddress;
     
     document.getElementById('locationName').innerHTML = fullAddress;
-    document.getElementById('locationCoords').innerHTML = `${currentLat.toFixed(6)}°N, ${currentLon.toFixed(6)}°E`;
+    document.getElementById('locationCoords').innerHTML = currentLat.toFixed(6) + '°N, ' + currentLon.toFixed(6) + '°E';
     
     await fetchWeather(currentLat, currentLon);
     await updateStreets();
@@ -285,7 +294,7 @@ async function refreshData() {
     updateLocationDetails();
     updateAgents(false);
     
-    speakMessage(`Location updated: ${fullAddress}`);
+    speakMessage("Location updated: " + fullAddress);
   }, function(error) {
     document.getElementById('results').innerHTML = '<div class="loading">❌ Location access denied. Please enable location services.</div>';
     updateAgents(false);
@@ -293,24 +302,24 @@ async function refreshData() {
 }
 
 async function getFullAddress(lat, lon) {
-  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=en`;
+  var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=18&addressdetails=1&accept-language=en';
   try {
-    const response = await fetch(url, { headers: { "User-Agent": "AI-Heat-Risk-Demo/1.0" } });
-    const data = await response.json();
+    var response = await fetch(url, { headers: { "User-Agent": "AI-Heat-Risk-Demo/1.0" } });
+    var data = await response.json();
     
-    let road = data.address?.road || data.address?.pedestrian || '';
-    let suburb = data.address?.suburb || data.address?.neighbourhood || '';
-    let city = data.address?.city || data.address?.town || data.address?.village || '';
-    let state = data.address?.state || '';
-    let country = data.address?.country || '';
+    var road = data.address?.road || data.address?.pedestrian || '';
+    var suburb = data.address?.suburb || data.address?.neighbourhood || '';
+    var city = data.address?.city || data.address?.town || data.address?.village || '';
+    var state = data.address?.state || '';
+    var country = data.address?.country || '';
     
-    let fullAddress = '';
+    var fullAddress = '';
     if (road) fullAddress += road;
     if (suburb) fullAddress += (fullAddress ? ', ' : '') + suburb;
     if (city) fullAddress += (fullAddress ? ', ' : '') + city;
     if (state) fullAddress += (fullAddress ? ', ' : '') + state;
     if (country) fullAddress += (fullAddress ? ', ' : '') + country;
-    if (!fullAddress) fullAddress = data.display_name || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    if (!fullAddress) fullAddress = data.display_name || lat.toFixed(4) + ', ' + lon.toFixed(4);
     
     return { city: city || 'Unknown City', country: country || 'Unknown Country', fullAddress: fullAddress };
   } catch(e) {
@@ -320,28 +329,24 @@ async function getFullAddress(lat, lon) {
 
 function updateLocationDetails() {
   if (!cachedWeather) return;
-  const temp = cachedWeather.temperature[currentForecast];
-  const humidity = cachedWeather.humidity[currentForecast];
-  const feelsLike = cachedWeather.apparent_temperature[currentForecast];
+  var temp = cachedWeather.temperature[currentForecast];
+  var humidity = cachedWeather.humidity[currentForecast];
+  var feelsLike = cachedWeather.apparent_temperature[currentForecast];
   
-  document.getElementById('locationDetails').innerHTML = `
-    <span>🌡️ Temperature: ${temp}°C</span>
-    <span>💧 Humidity: ${humidity}%</span>
-    <span>🌡️ Feels Like: ${feelsLike}°C</span>
-  `;
+  document.getElementById('locationDetails').innerHTML = '<span>🌡️ Temperature: ' + temp + '°C</span><span>💧 Humidity: ' + humidity + '%</span><span>🌡️ Feels Like: ' + feelsLike + '°C</span>';
 }
 
 function updateWarningCard() {
   if (!cachedWeather || !currentLat) return;
   
-  const temp = cachedWeather.temperature[currentForecast];
-  const humidity = cachedWeather.humidity[currentForecast];
-  const feelsLike = cachedWeather.apparent_temperature[currentForecast];
-  let score = calculateRiskScore(temp);
-  let riskLevel = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
+  var temp = cachedWeather.temperature[currentForecast];
+  var humidity = cachedWeather.humidity[currentForecast];
+  var feelsLike = cachedWeather.apparent_temperature[currentForecast];
+  var score = calculateRiskScore(temp);
+  var riskLevel = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
   
-  let message = '';
-  let shortMessage = '';
+  var message = '';
+  var shortMessage = '';
   if (riskLevel === 'DANGER') {
     message = '🚨 DANGER: Extreme heat conditions! Avoid outdoor exposure if possible. Stay in air conditioning, drink water every 15 minutes, use sunscreen SPF 50, wear light colored clothing, avoid peak sun hours 11am to 4pm. Seek immediate shade if outdoors.';
     shortMessage = 'DANGER: Extreme heat! Stay indoors.';
@@ -353,12 +358,12 @@ function updateWarningCard() {
     shortMessage = 'SAFE: Low heat risk. Enjoy outdoor activities.';
   }
   
-  const card = document.getElementById('warningCard');
-  const icon = document.getElementById('warningIcon');
-  const title = document.getElementById('warningTitle');
-  const warningMsg = document.getElementById('warningMessage');
-  const locationSpan = document.getElementById('warningLocation');
-  const riskBadge = document.getElementById('riskBadge');
+  var card = document.getElementById('warningCard');
+  var icon = document.getElementById('warningIcon');
+  var title = document.getElementById('warningTitle');
+  var warningMsg = document.getElementById('warningMessage');
+  var locationSpan = document.getElementById('warningLocation');
+  var riskBadge = document.getElementById('riskBadge');
   
   card.className = 'warning-card';
   if (riskLevel === 'DANGER') {
@@ -379,8 +384,8 @@ function updateWarningCard() {
   }
   
   warningMsg.innerHTML = message;
-  locationSpan.innerHTML = fullAddress || `${cityName}, ${countryName}`;
-  riskBadge.innerHTML = `Score: ${score}/100 | ${temp}°C | Feels: ${feelsLike}°C | Humidity: ${humidity}%`;
+  locationSpan.innerHTML = fullAddress || (cityName + ', ' + countryName);
+  riskBadge.innerHTML = 'Score: ' + score + '/100 | ' + temp + '°C | Feels: ' + feelsLike + '°C | Humidity: ' + humidity + '%';
   
   speakMessage(shortMessage);
 }
@@ -398,38 +403,35 @@ function calculateRiskScore(temp) {
 }
 
 async function fetchWeather(lat, lon) {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,apparent_temperature&forecast_days=1&timezone=auto`;
-  const response = await fetch(url);
-  const data = await response.json();
+  var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&hourly=temperature_2m,relative_humidity_2m,apparent_temperature&forecast_days=1&timezone=auto';
+  var response = await fetch(url);
+  var data = await response.json();
   
-  const now = new Date();
-  const resultTemp = [], resultHumidity = [], resultApparent = [], resultTime = [];
+  var now = new Date();
+  var resultTemp = [], resultHumidity = [], resultApparent = [], resultTime = [];
   
-  for (let step = 0; step <= 12; step++) {
-    const targetTime = new Date(now.getTime() + step * 30 * 60 * 1000);
-    let beforeIndex = 0;
-    for (let i = 0; i < data.hourly.time.length - 1; i++) {
-      const t1 = new Date(data.hourly.time[i]);
-      const t2 = new Date(data.hourly.time[i + 1]);
+  for (var step = 0; step <= 12; step++) {
+    var targetTime = new Date(now.getTime() + step * 30 * 60 * 1000);
+    var beforeIndex = 0;
+    for (var i = 0; i < data.hourly.time.length - 1; i++) {
+      var t1 = new Date(data.hourly.time[i]);
+      var t2 = new Date(data.hourly.time[i + 1]);
       if (targetTime >= t1 && targetTime <= t2) { beforeIndex = i; break; }
     }
-    const t1 = new Date(data.hourly.time[beforeIndex]);
-    const t2 = new Date(data.hourly.time[beforeIndex + 1]);
-    const ratio = (targetTime - t1) / (t2 - t1);
+    var t1 = new Date(data.hourly.time[beforeIndex]);
+    var t2 = new Date(data.hourly.time[beforeIndex + 1]);
+    var ratio = (targetTime - t1) / (t2 - t1);
     
     resultTime.push(targetTime);
-    resultTemp.push(Number((data.hourly.temperature_2m[beforeIndex] + 
-      (data.hourly.temperature_2m[beforeIndex + 1] - data.hourly.temperature_2m[beforeIndex]) * ratio).toFixed(1)));
-    resultHumidity.push(Math.round(data.hourly.relative_humidity_2m[beforeIndex] + 
-      (data.hourly.relative_humidity_2m[beforeIndex + 1] - data.hourly.relative_humidity_2m[beforeIndex]) * ratio));
-    resultApparent.push(Number((data.hourly.apparent_temperature[beforeIndex] + 
-      (data.hourly.apparent_temperature[beforeIndex + 1] - data.hourly.apparent_temperature[beforeIndex]) * ratio).toFixed(1)));
+    resultTemp.push(Number((data.hourly.temperature_2m[beforeIndex] + (data.hourly.temperature_2m[beforeIndex + 1] - data.hourly.temperature_2m[beforeIndex]) * ratio).toFixed(1)));
+    resultHumidity.push(Math.round(data.hourly.relative_humidity_2m[beforeIndex] + (data.hourly.relative_humidity_2m[beforeIndex + 1] - data.hourly.relative_humidity_2m[beforeIndex]) * ratio));
+    resultApparent.push(Number((data.hourly.apparent_temperature[beforeIndex] + (data.hourly.apparent_temperature[beforeIndex + 1] - data.hourly.apparent_temperature[beforeIndex]) * ratio).toFixed(1)));
   }
   
   cachedWeather = { temperature: resultTemp, humidity: resultHumidity, apparent_temperature: resultApparent, time: resultTime };
-  forecastNames = resultTime.map(t => t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  forecastNames = resultTime.map(function(t) { return t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); });
   
-  const slider = document.getElementById('forecastSlider');
+  var slider = document.getElementById('forecastSlider');
   if (slider) {
     slider.max = forecastNames.length - 1;
     document.getElementById('forecastValue').innerText = forecastNames[0];
@@ -437,26 +439,27 @@ async function fetchWeather(lat, lon) {
 }
 
 async function fetchNearbyStreets(lat, lon) {
-  const query = `[out:json][timeout:25];(way["highway"](around:400,${lat},${lon});node["highway"](around:400,${lat},${lon}););out center;`;
-  const response = await fetch("https://overpass-api.de/api/interpreter", {
+  var query = '[out:json][timeout:25];(way["highway"](around:400,' + lat + ',' + lon + ');node["highway"](around:400,' + lat + ',' + lon + '););out center;';
+  var response = await fetch("https://overpass-api.de/api/interpreter", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "AI-Heat-Risk-Demo/1.0" },
     body: "data=" + encodeURIComponent(query)
   });
-  const data = await response.json();
+  var data = await response.json();
   
-  const streets = [];
-  const seen = new Set();
-  for (const element of data.elements || []) {
-    const tags = element.tags;
-    const lat = element.lat || element.center?.lat;
-    const lon = element.lon || element.center?.lon;
-    if (!tags || !lat || !lon) continue;
-    const name = tags.name || tags["name:en"] || (tags.highway ? tags.highway.replace('_', ' ') : 'Road');
-    const key = `${name}-${lat.toFixed(4)}`;
+  var streets = [];
+  var seen = new Set();
+  for (var i = 0; i < (data.elements || []).length; i++) {
+    var element = data.elements[i];
+    var tags = element.tags;
+    var streetLat = element.lat || (element.center ? element.center.lat : null);
+    var streetLon = element.lon || (element.center ? element.center.lon : null);
+    if (!tags || !streetLat || !streetLon) continue;
+    var name = tags.name || tags["name:en"] || (tags.highway ? tags.highway.replace('_', ' ') : 'Road');
+    var key = name + '-' + streetLat.toFixed(4);
     if (seen.has(key)) continue;
     seen.add(key);
-    streets.push({ name: name, lat: lat, lon: lon, type: tags.highway || 'road' });
+    streets.push({ name: name, lat: streetLat, lon: streetLon, type: tags.highway || 'road' });
     if (streets.length >= 20) break;
   }
   return streets;
@@ -467,67 +470,59 @@ async function updateStreets() {
   
   document.getElementById('results').innerHTML = '<div class="loading">🌡️ Analyzing nearby streets...</div>';
   
-  const streets = await fetchNearbyStreets(currentLat, currentLon);
-  const temp = cachedWeather.temperature[currentForecast];
-  const humidity = cachedWeather.humidity[currentForecast];
-  const feelsLike = cachedWeather.apparent_temperature[currentForecast];
+  var streets = await fetchNearbyStreets(currentLat, currentLon);
+  var temp = cachedWeather.temperature[currentForecast];
+  var humidity = cachedWeather.humidity[currentForecast];
+  var feelsLike = cachedWeather.apparent_temperature[currentForecast];
   
-  streetMarkers.forEach(m => map.removeLayer(m));
+  for (var i = 0; i < streetMarkers.length; i++) {
+    map.removeLayer(streetMarkers[i]);
+  }
   streetMarkers = [];
   
-  let html = '';
-  for (const street of streets) {
-    let score = calculateRiskScore(temp);
+  var html = '';
+  for (var i = 0; i < streets.length; i++) {
+    var street = streets[i];
+    var score = calculateRiskScore(temp);
     if (street.type === 'motorway' || street.type === 'trunk' || street.type === 'primary') score += 25;
     else if (street.type === 'secondary' || street.type === 'tertiary') score += 15;
     else if (street.type === 'residential' || street.type === 'living_street') score += 5;
     else score -= 5;
     score = Math.min(100, Math.max(0, score));
     
-    let level = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
-    let advice = level === 'DANGER' ? '❌ Avoid this street - high heat absorption from concrete/pavement' : 
-                  (level === 'ALERT' ? '⚠️ Use caution - moderate heat, take umbrella' : '✅ Safe street - good for walking');
+    var level = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
+    var advice = level === 'DANGER' ? '❌ Avoid this street - high heat absorption' : (level === 'ALERT' ? '⚠️ Use caution - take umbrella' : '✅ Safe street - good for walking');
     
-    html += `
-      <div class="street-card ${level}">
-        <div class="street-name">🛣️ ${street.name}</div>
-        <div class="street-details">
-          <span>🏗️ Type: ${street.type}</span>
-          <span>🌡️ Temp: ${temp}°C</span>
-          <span>💧 Humidity: ${humidity}%</span>
-          <span>🌡️ Feels: ${feelsLike}°C</span>
-          <span>⚠️ Level: ${level} (${score}/100)</span>
-        </div>
-        <div class="street-details">💡 ${advice}</div>
-      </div>
-    `;
+    html += '<div class="street-card ' + level + '">' +
+      '<div class="street-name">🛣️ ' + street.name + '</div>' +
+      '<div class="street-details">' +
+      '<span>🏗️ Type: ' + street.type + '</span>' +
+      '<span>🌡️ Temp: ' + temp + '°C</span>' +
+      '<span>💧 Humidity: ' + humidity + '%</span>' +
+      '<span>🌡️ Feels: ' + feelsLike + '°C</span>' +
+      '<span>⚠️ Level: ' + level + ' (' + score + '/100)</span>' +
+      '</div>' +
+      '<div class="street-details">💡 ' + advice + '</div>' +
+      '</div>';
     
-    const color = level === 'DANGER' ? '#ff4b4b' : (level === 'ALERT' ? '#ffa500' : '#4caf50');
-    const radius = 15 + (score / 4);
-    const circle = L.circle([street.lat, street.lon], {
+    var color = level === 'DANGER' ? '#ff4b4b' : (level === 'ALERT' ? '#ffa500' : '#4caf50');
+    var radius = 15 + (score / 4);
+    var circle = L.circle([street.lat, street.lon], {
       radius: radius,
       color: color,
       fillColor: color,
       fillOpacity: 0.5,
       weight: 2
-    }).addTo(map).bindPopup(`
-      <b>📍 ${street.name}</b><br>
-      🏗️ Type: ${street.type}<br>
-      🌡️ Temperature: ${temp}°C<br>
-      💧 Humidity: ${humidity}%<br>
-      🌡️ Feels Like: ${feelsLike}°C<br>
-      ⚠️ Risk Level: ${level} (${score}/100)<br>
-      💡 ${advice}
-    `);
+    }).addTo(map).bindPopup('<b>📍 ' + street.name + '</b><br>🏗️ Type: ' + street.type + '<br>🌡️ Temperature: ' + temp + '°C<br>💧 Humidity: ' + humidity + '%<br>🌡️ Feels Like: ' + feelsLike + '°C<br>⚠️ Risk Level: ' + level + ' (' + score + '/100)<br>💡 ' + advice);
     streetMarkers.push(circle);
   }
   
-  if (html === '') html = '<div class="loading">No nearby streets found. Try zooming out or moving to an area with more roads.</div>';
+  if (html === '') html = '<div class="loading">No nearby streets found.</div>';
   document.getElementById('results').innerHTML = html;
 }
 
 function updateAgents(loading) {
-  const agents = [
+  var agents = [
     { name: '🌡️ Heat Sensor', status: loading ? 'Scanning...' : 'Active' },
     { name: '🗺️ Surface Scanner', status: loading ? 'Analyzing...' : 'Ready' },
     { name: '👥 People Tracker', status: loading ? 'Tracking...' : 'Monitoring' },
@@ -536,18 +531,19 @@ function updateAgents(loading) {
     { name: '🧠 Learning AI', status: loading ? 'Updating...' : 'Optimized' }
   ];
   
-  let html = '';
-  agents.forEach(agent => {
-    html += `<div class="agent-card ${loading ? 'active' : ''}">
-      <div class="agent-name">${agent.name}</div>
-      <div class="agent-status">${agent.status}</div>
-      <div class="agent-dot"></div>
-    </div>`;
-  });
+  var html = '';
+  for (var i = 0; i < agents.length; i++) {
+    var agent = agents[i];
+    html += '<div class="agent-card ' + (loading ? 'active' : '') + '">' +
+      '<div class="agent-name">' + agent.name + '</div>' +
+      '<div class="agent-status">' + agent.status + '</div>' +
+      '<div class="agent-dot"></div>' +
+      '</div>';
+  }
   document.getElementById('agentsGrid').innerHTML = html;
 }
 
-window.onload = () => {
+window.onload = function() {
   refreshData();
 };
 </script>
