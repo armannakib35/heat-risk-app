@@ -442,4 +442,3 @@ window.onload = function() { refreshData(); };
 </body>
 </html>
 ''';
-}
