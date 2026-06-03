@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,13 +36,18 @@ class HeatRiskWebView extends StatefulWidget {
 
 class _HeatRiskWebViewState extends State<HeatRiskWebView> {
   late final WebViewController controller;
+  final FlutterTts flutterTts = FlutterTts();
 
   @override
   void initState() {
     super.initState();
+    _initTts();
 
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel('TtsChannel', onMessageReceived: (message) {
+        _speak(message.message);
+      })
       ..loadHtmlString(_html, baseUrl: 'https://heat-risk.local');
 
     if (controller.platform is AndroidWebViewController) {
@@ -57,6 +63,16 @@ class _HeatRiskWebViewState extends State<HeatRiskWebView> {
         },
       );
     }
+  }
+
+  Future<void> _initTts() async {
+    await flutterTts.setLanguage("en-US");
+    await flutterTts.setSpeechRate(0.5);
+    await flutterTts.setPitch(1.0);
+  }
+
+  Future<void> _speak(String message) async {
+    await flutterTts.speak(message);
   }
 
   @override
@@ -657,6 +673,16 @@ let routeLines = [];
 let cityName = '';
 let countryName = '';
 
+// ============ VOICE FUNCTION ============
+function speakMessage(message) {
+  if (window.TtsChannel) {
+    window.TtsChannel.postMessage(message);
+  } else {
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(message));
+  }
+}
+
 // ============ TAB SWITCHING ============
 function switchTab(tab) {
   const heatmapPanel = document.getElementById('heatmapPanel');
@@ -693,7 +719,6 @@ function initHeatmapMap(lat, lon) {
       subdomains: 'abcd',
       maxZoom: 19
     }).addTo(heatmapMap);
-    console.log("Heatmap map initialized");
   } else {
     heatmapMap.setView([lat, lon], 15);
   }
@@ -739,7 +764,6 @@ async function refreshHeatmap() {
     updateLocationDetails();
     updateAgents('heat', false);
   }, function(error) {
-    console.error("Geolocation error:", error);
     document.getElementById('resultsHeat').innerHTML = '<div class="loading">❌ Location access denied. Please enable location services.</div>';
     updateAgents('heat', false);
   }, { enableHighAccuracy: true, timeout: 10000 });
@@ -784,9 +808,9 @@ function updateWarningCard() {
   
   let message = '';
   if (riskLevel === 'DANGER') {
-    message = '🚨 DANGER: Extreme heat conditions! Avoid outdoor exposure if possible. Stay in air conditioning, drink water every 15 minutes, use sunscreen, wear light clothing, avoid peak sun hours 11am-4pm. Seek immediate shade if outdoors.';
+    message = '🚨 DANGER: Extreme heat conditions! Avoid outdoor exposure if possible. Stay in air conditioning, drink water every 15 minutes, use sunscreen, wear light clothing, avoid peak sun hours 11am to 4pm. Seek immediate shade if outdoors.';
   } else if (riskLevel === 'ALERT') {
-    message = '⚠️ ALERT: High heat risk! Take precautions: stay hydrated, use sunscreen cream (SPF 30+), take umbrella, wear hat, reduce outdoor exposure, take breaks in shade every 30 minutes.';
+    message = '⚠️ ALERT: High heat risk! Take precautions: stay hydrated, use sunscreen cream SPF 30 plus, take umbrella, wear hat, reduce outdoor exposure, take breaks in shade every 30 minutes.';
   } else {
     message = '✅ SAFE: Low heat risk. Conditions are favorable for outdoor activities. Still remember to drink water regularly and use basic sun protection if staying out long.';
   }
@@ -816,6 +840,9 @@ function updateWarningCard() {
   warningMsg.innerHTML = message;
   locationSpan.innerHTML = `${cityName}, ${countryName}`;
   riskBadge.innerHTML = `Score: ${score}/100 | ${temp}°C | Feels: ${feelsLike}°C | Humidity: ${humidity}%`;
+  
+  // VOICE: Speak the warning message
+  speakMessage(message.replace(/[🚨⚠️✅🌡️💧]/g, '').trim());
 }
 
 function calculateRiskScore(temp) {
@@ -974,7 +1001,6 @@ function initRouteMap(lat, lon) {
       subdomains: 'abcd',
       maxZoom: 19
     }).addTo(routeMap);
-    console.log("Route map initialized");
   } else {
     routeMap.setView([lat, lon], 14);
   }
@@ -1173,7 +1199,6 @@ function showRouteOnMap(routeIndex) {
 
 // Initialize on load
 window.onload = () => {
-  console.log("Page loaded, initializing...");
   refreshHeatmap();
   
   const checkLocation = setInterval(() => {
