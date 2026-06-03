@@ -138,6 +138,7 @@ const String _html = r'''
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
+<button class="refresh-btn" style="background:#2196F3; margin-top:5px;" onclick="speakMessage('Voice test successful')">🔊 Enable Voice</button>
 <button id="v" style="display:none" onclick="speakMessage('Voice activated')"></button><script>setTimeout(function(){document.getElementById('v').click();},2000);</script>
 <div class="app-container">
   <div class="header">
@@ -188,19 +189,7 @@ let fullAddress = '';
 let streetName = '', villageName = '', cityName = '', stateName = '', countryName = '';
 
 // WEB SPEECH SYNTHESIS VOICE FUNCTION
-function speakMessage(message) {
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-    var utterance = new SpeechSynthesisUtterance(message);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.9;
-    utterance.pitch = 1.0;
-    utterance.volume = 1;
-    utterance.onerror = function(event) { console.log('Voice error:', event); };
-    window.speechSynthesis.speak(utterance);
-    window.speechSynthesis.speak(utterance);
-  }
-}
+function speakMessage(message) { try { window.speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance(message); u.lang = 'en-US'; u.rate = 0.9; window.speechSynthesis.speak(u); } catch(e) { } }
 
 function initMap(lat, lon) {
   if (!map) {
@@ -412,7 +401,7 @@ async function updateStreets() {
     var advice = level === 'DANGER' ? '🔥 Avoid this street' : (level === 'ALERT' ? '⚠️ Take caution' : '✅ Safe for walking');
     html += '<div class="street-card ' + level + '"><div class="street-name">🛣️ ' + street.name + '</div><div class="street-details"><span>🏗️ ' + street.type + '</span><span>🌡️ ' + temp + '°C</span><span>💧 ' + humidity + '%</span><span>🌡️ Feels: ' + feelsLike + '°C</span><span> ' + level + ' (' + score + '/100)</span></div><div class="street-details">' + advice + '</div></div>';
     var color = level === 'DANGER' ? '#ff4b4b' : (level === 'ALERT' ? '#ffa500' : '#4caf50');
-    var radius = 25 + (score / 2);
+    var radius = 40;
     var circle = L.circle([street.lat, street.lon], { radius: radius, color: color, fillColor: color, fillOpacity: 0.5, weight: 3 }).addTo(map);
     circle.bindPopup('<b>' + street.name + '</b><br><b>Risk:</b> ' + level + '<br><b>Temp:</b> ' + temp + '°C<br><b>Score:</b> ' + score + '/100');
     streetMarkers.push(circle);
