@@ -199,7 +199,7 @@ const String _html = r'''
 let map, userMarker, currentLat = null, currentLon = null;
 let cachedWeather = null, currentForecast = 0, forecastNames = [];
 let streetMarkers = [];
-let cityName = '', countryName = '', fullAddress = '';
+let fullAddress = '';
 
 function speakMessage(message) {
   if (window.TtsChannel) {
@@ -208,7 +208,7 @@ function speakMessage(message) {
     try {
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(new SpeechSynthesisUtterance(message));
-    } catch(e) { console.log("Voice error:", e); }
+    } catch(e) { }
   }
 }
 
@@ -216,10 +216,9 @@ function initMap(lat, lon) {
   if (!map) {
     map = L.map("heatmap").setView([lat, lon], 16);
     L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+      attribution: '&copy; OpenStreetMap',
       subdomains: 'abcd',
-      maxZoom: 20,
-      minZoom: 3
+      maxZoom: 20
     }).addTo(map);
   } else {
     map.setView([lat, lon], 16);
@@ -228,8 +227,7 @@ function initMap(lat, lon) {
   userMarker = L.marker([lat, lon], {
     icon: L.divIcon({
       html: '<div style="background:#ff7e5f; width:24px; height:24px; border-radius:50%; border:3px solid white; box-shadow:0 0 15px rgba(0,0,0,0.3);"></div>',
-      iconSize: [24, 24],
-      className: 'custom-div-icon'
+      iconSize: [24, 24]
     })
   }).addTo(map).bindPopup('<b>You are here</b>');
 }
@@ -250,13 +248,8 @@ async function refreshData() {
     currentLat = position.coords.latitude;
     currentLon = position.coords.longitude;
     initMap(currentLat, currentLon);
-    const locationData = await getFullAddress(currentLat, currentLon);
-    cityName = locationData.city;
-    countryName = locationData.country;
-    fullAddress = locationData.fullAddress;
-    document.getElementById('locationName').innerHTML = locationData.street || locationData.city || 'Unknown';
+    await getFullAddress(currentLat, currentLon);
     document.getElementById('locationCoords').innerHTML = currentLat.toFixed(6) + '°N, ' + currentLon.toFixed(6) + '°E';
-    document.getElementById('locationFull').innerHTML = '📍 ' + fullAddress;
     await fetchWeather(currentLat, currentLon);
     await updateStreets();
     updateWarningCard();
@@ -269,29 +262,23 @@ async function refreshData() {
 }
 
 async function getFullAddress(lat, lon) {
-  const url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=18&addressdetails=1&accept-language=en';
+  var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=18&addressdetails=1&accept-language=en';
   try {
-    const response = await fetch(url, { headers: { "User-Agent": "AI-Heat-Risk-Demo/1.0" } });
-    const data = await response.json();
-    const addr = data.address || {};
-    let street = addr.road || addr.pedestrian || addr.footway || '';
-    let houseNumber = addr.house_number || '';
-    let suburb = addr.suburb || addr.neighbourhood || '';
-    let city = addr.city || addr.town || addr.village || addr.municipality || 'Unknown';
-    let state = addr.state || '';
-    let country = addr.country || 'Unknown';
-    let postcode = addr.postcode || '';
-    let fullAddress = '';
+    var response = await fetch(url, { headers: { "User-Agent": "AI-Heat-Risk-Demo/1.0" } });
+    var data = await response.json();
+    var addr = data.address || {};
+    var street = addr.road || addr.pedestrian || '';
+    var city = addr.city || addr.town || addr.village || 'Unknown';
+    var country = addr.country || 'Unknown';
+    fullAddress = '';
     if (street) fullAddress += street;
-    if (houseNumber) fullAddress += ' ' + houseNumber;
-    if (suburb) fullAddress += (fullAddress ? ', ' : '') + suburb;
     if (city) fullAddress += (fullAddress ? ', ' : '') + city;
-    if (state) fullAddress += (fullAddress ? ', ' : '') + state;
-    if (postcode) fullAddress += ' ' + postcode;
     if (country) fullAddress += (fullAddress ? ', ' : '') + country;
-    return { street: street || city, city: city, country: country, fullAddress: fullAddress || data.display_name || city + ', ' + country };
+    document.getElementById('locationName').innerHTML = street || city;
+    document.getElementById('locationFull').innerHTML = '📍 ' + fullAddress;
   } catch(e) {
-    return { street: 'Unknown', city: 'Unknown', country: 'Unknown', fullAddress: 'Location unavailable' };
+    document.getElementById('locationName').innerHTML = 'Unknown';
+    document.getElementById('locationFull').innerHTML = '📍 Location unavailable';
   }
 }
 
@@ -312,11 +299,11 @@ function updateWarningCard() {
   var riskLevel = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
   var message = '';
   if (riskLevel === 'DANGER') {
-    message = 'DANGER! Extreme heat at ' + temp + ' degrees. Avoid outdoor exposure. Stay in air conditioning, drink water every 15 minutes.';
+    message = 'DANGER! Extreme heat at ' + temp + ' degrees. Avoid outdoor exposure.';
   } else if (riskLevel === 'ALERT') {
-    message = 'ALERT! High heat at ' + temp + ' degrees. Stay hydrated, use sunscreen, take breaks in shade.';
+    message = 'ALERT! High heat at ' + temp + ' degrees. Stay hydrated.';
   } else {
-    message = 'SAFE. ' + temp + ' degrees. Conditions are good for outdoor activities. Stay hydrated.';
+    message = 'SAFE. ' + temp + ' degrees. Conditions are good.';
   }
   var card = document.getElementById('warningCard');
   var icon = document.getElementById('warningIcon');
@@ -389,11 +376,10 @@ async function fetchNearbyStreets(lat, lon) {
     if (!tags || !center) continue;
     var name = tags["name:en"] || tags.name || '';
     if (!name || name.length < 2) continue;
-    var highway = tags.highway || 'road';
     var key = name + '-' + center.lat.toFixed(5);
     if (seen.has(key)) continue;
     seen.add(key);
-    streets.push({ name: name, lat: center.lat, lon: center.lon, type: highway });
+    streets.push({ name: name, lat: center.lat, lon: center.lon, type: tags.highway || 'road' });
     if (streets.length >= 20) break;
   }
   return streets;
@@ -416,22 +402,20 @@ async function updateStreets() {
   for (var s = 0; s < streets.length; s++) {
     var street = streets[s];
     var baseScore = temp >= 35 ? 90 : (temp >= 32 ? 80 : (temp >= 30 ? 70 : (temp >= 28 ? 55 : (temp >= 25 ? 40 : (temp >= 22 ? 25 : 10)))));
-    var surfaceScore = (street.type.includes('primary') || street.type.includes('motorway') || street.type.includes('trunk')) ? 25 : ((street.type.includes('secondary') || street.type.includes('tertiary')) ? 15 : 5);
+    var surfaceScore = (street.type.includes('primary') || street.type.includes('motorway')) ? 25 : 10;
     var score = Math.min(100, baseScore + surfaceScore);
     var level = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
     var advice = level === 'DANGER' ? '🔥 Avoid this street' : (level === 'ALERT' ? '⚠️ Take caution' : '✅ Safe for walking');
     html += '<div class="street-card ' + level + '"><div class="street-name">🛣️ ' + street.name + '</div><div class="street-details"><span>🏗️ ' + street.type + '</span><span>🌡️ ' + temp + '°C</span><span>💧 ' + humidity + '%</span><span>🌡️ Feels: ' + feelsLike + '°C</span><span>⚠️ ' + level + ' (' + score + '/100)</span></div><div class="street-details">' + advice + '</div></div>';
     var color = level === 'DANGER' ? '#ff4b4b' : (level === 'ALERT' ? '#ffa500' : '#4caf50');
     var radius = 25 + (score / 2);
-    var circle = L.circle([street.lat, street.lon], { radius: radius, color: color, fillColor: color, fillOpacity: 0.5, weight: 3, opacity: 0.8 }).addTo(map);
-    circle.bindPopup('<b>' + street.name + '</b><br><b>Risk:</b> ' + level + '<br><b>Temp:</b> ' + temp + '°C<br><b>Humidity:</b> ' + humidity + '%<br><b>Feels:</b> ' + feelsLike + '°C<br><b>Score:</b> ' + score + '/100');
+    var circle = L.circle([street.lat, street.lon], { radius: radius, color: color, fillColor: color, fillOpacity: 0.5, weight: 3 }).addTo(map);
+    circle.bindPopup('<b>' + street.name + '</b><br><b>Risk:</b> ' + level + '<br><b>Temp:</b> ' + temp + '°C<br><b>Score:</b> ' + score + '/100');
     streetMarkers.push(circle);
-    var label = L.marker([street.lat, street.lon], { icon: L.divIcon({ html: '<div style="background:rgba(0,0,0,0.7); color:white; padding:2px 6px; border-radius:12px; font-size:10px; white-space:nowrap;">' + street.name.substring(0, 20) + '</div>', iconSize: [100, 20], className: 'street-label' }) }).addTo(map);
-    streetMarkers.push(label);
   }
   document.getElementById('results').innerHTML = html;
   if (streetMarkers.length > 0) {
-    var bounds = L.latLngBounds(streetMarkers.filter(function(m) { return m.getLatLng; }).map(function(m) { return m.getLatLng(); }));
+    var bounds = L.latLngBounds(streetMarkers.map(function(m) { return m.getLatLng(); }));
     bounds.extend([currentLat, currentLon]);
     map.fitBounds(bounds, { padding: [50, 50] });
   }
@@ -448,8 +432,7 @@ function updateAgents(loading) {
   ];
   var html = '';
   for (var i = 0; i < agents.length; i++) {
-    var agent = agents[i];
-    html += '<div class="agent-card ' + (loading ? 'active' : '') + '"><div class="agent-name">' + agent.name + '</div><div class="agent-status">' + agent.status + '</div><div class="agent-dot"></div></div>';
+    html += '<div class="agent-card ' + (loading ? 'active' : '') + '"><div class="agent-name">' + agents[i].name + '</div><div class="agent-status">' + agents[i].status + '</div><div class="agent-dot"></div></div>';
   }
   document.getElementById('agentsGrid').innerHTML = html;
 }
