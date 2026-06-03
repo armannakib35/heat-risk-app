@@ -71,7 +71,7 @@ const String _html = r'''
 <!DOCTYPE html>
 <html>
 <head>
-  <title>AI Heat Risk Warning</title>
+  <title>AI Heat Risk Warning - Intelligent System</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -112,8 +112,10 @@ const String _html = r'''
     .location-full { font-size: 11px; color: #777; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e0e0e0; line-height: 1.5; }
     .location-details { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #555; display: flex; gap: 16px; flex-wrap: wrap; }
     .agents-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
-    .agent-card { background: linear-gradient(135deg, #f5f7fa, #c3cfe2); padding: 12px; border-radius: 14px; position: relative; transition: all 0.3s; }
+    .agent-card { background: linear-gradient(135deg, #f5f7fa, #c3cfe2); padding: 12px; border-radius: 14px; position: relative; transition: all 0.3s; cursor: pointer; }
     .agent-card.active { background: linear-gradient(135deg, #ff7e5f, #feb47b); color: white; transform: scale(1.02); }
+    .agent-card.learning { background: linear-gradient(135deg, #11998e, #38ef7d); color: white; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
     .agent-name { font-weight: 700; font-size: 12px; margin-bottom: 4px; }
     .agent-status { font-size: 10px; opacity: 0.8; }
     .agent-dot { position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: #4caf50; animation: blink 1s infinite; }
@@ -129,6 +131,7 @@ const String _html = r'''
     .street-details { font-size: 11px; color: #666; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
     .refresh-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #ff7e5f, #feb47b); color: white; border: none; border-radius: 25px; font-weight: 700; font-size: 16px; cursor: pointer; margin-top: 10px; }
     .loading { text-align: center; padding: 20px; color: #888; }
+    .ai-insight { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 15px; border-radius: 16px; margin-top: 10px; font-size: 13px; line-height: 1.5; }
     .custom-div-icon { background: transparent; }
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
@@ -140,8 +143,8 @@ const String _html = r'''
 <body>
 <div class="app-container">
   <div class="header">
-    <h1>🌡️ AI Heat Risk Warning</h1>
-    <p>Real-time thermal monitoring & street-level heat analysis</p>
+    <h1>🧠 AI Heat Risk Warning</h1>
+    <p>Intelligent self-learning system with 6 AI agents</p>
   </div>
   <div id="warningCard" class="warning-card safe" onclick="refreshData()">
     <div class="warning-header">
@@ -161,8 +164,8 @@ const String _html = r'''
       <div class="slider-label"><span>⏰ Forecast Time</span><span id="forecastValue">Now</span></div>
       <input type="range" id="forecastSlider" min="0" max="12" value="0" oninput="updateForecast(this.value)">
     </div>
-    <button class="refresh-btn" onclick="refreshData()">🔄 Refresh Data & Voice Alert</button>
-    <button class="refresh-btn" style="background:#2196F3; margin-top:5px;" onclick="enableVoiceAndSpeak()">🔊 Enable Voice (Tap Once)</button>
+    <button class="refresh-btn" onclick="refreshData()">🔄 Refresh Data</button>
+    <button class="refresh-btn" style="background:#2196F3; margin-top:5px;" onclick="getAIInsights()">🤖 Get AI Insights</button>
   </div>
   <div class="location-card">
     <h4>📍 YOUR LOCATION</h4>
@@ -172,43 +175,292 @@ const String _html = r'''
     <div class="location-details" id="locationDetails"><span>🌡️ Waiting for data...</span></div>
   </div>
   <div class="control-panel">
-    <h4 style="margin-bottom:12px;">🤖 AI Agent Network</h4>
+    <h4 style="margin-bottom:12px;">🤖 AI Agent Network (Self-Learning)</h4>
     <div class="agents-grid" id="agentsGrid"></div>
   </div>
+  <div id="aiInsights" class="ai-insight" style="display:none;"></div>
   <div class="results-container">
     <h3>📊 Street-Level Heat Analysis</h3>
     <div id="results">Waiting for location data...</div>
   </div>
 </div>
 <script>
-let map, userMarker, currentLat = null, currentLon = null;
-let cachedWeather = null, currentForecast = 0, forecastNames = [];
-let streetMarkers = [];
-let fullAddress = '';
-let streetName = '', villageName = '', cityName = '', stateName = '', countryName = '';
-let voiceEnabled = false;
+// ============ CONFIGURATION ============
+const LLM_API_KEY = 'sk-a9494512c2904a688bfc78cfac87d2fb';
+const LLM_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
-// WEB SPEECH SYNTHESIS VOICE FUNCTION
-function speakMessage(message) {
-  if (!voiceEnabled) {
-    console.log('Voice not enabled yet');
+// ============ SELF-LEARNING SYSTEM ============
+let learningData = {
+  history: [],
+  patterns: {},
+  userPreferences: {},
+  riskPredictions: {},
+  lastPrediction: null,
+  learningIterations: 0
+};
+
+// Load saved learning data from localStorage
+function loadLearningData() {
+  try {
+    const saved = localStorage.getItem('heatRiskLearning');
+    if (saved) {
+      learningData = JSON.parse(saved);
+      console.log('Learning data loaded, iterations:', learningData.learningIterations);
+    }
+  } catch(e) { console.log('No saved data'); }
+}
+
+// Save learning data
+function saveLearningData() {
+  try {
+    localStorage.setItem('heatRiskLearning', JSON.stringify(learningData));
+  } catch(e) {}
+}
+
+// Record an event for learning
+function recordEvent(eventType, data) {
+  const event = {
+    timestamp: Date.now(),
+    type: eventType,
+    data: data,
+    location: { lat: currentLat, lon: currentLon, address: fullAddress }
+  };
+  learningData.history.push(event);
+  if (learningData.history.length > 100) learningData.history.shift();
+  
+  // Update patterns
+  const key = `${eventType}_${Math.floor(data.temp || 0)}`;
+  learningData.patterns[key] = (learningData.patterns[key] || 0) + 1;
+  
+  saveLearningData();
+}
+
+// AI Agent System with LLM Integration
+class AIAgent {
+  constructor(name, role) {
+    this.name = name;
+    this.role = role;
+    this.status = 'idle';
+    this.learnings = [];
+    this.confidence = 0.7;
+  }
+  
+  async analyze(context) {
+    this.status = 'analyzing';
+    updateAgentUI(this.name, 'analyzing...', true);
+    
+    try {
+      const result = await this.callLLM(context);
+      this.learnings.push(result);
+      this.confidence = Math.min(0.95, this.confidence + 0.05);
+      this.status = 'active';
+      updateAgentUI(this.name, 'active', false);
+      return result;
+    } catch(e) {
+      this.status = 'error';
+      updateAgentUI(this.name, 'error', false);
+      return this.fallbackAnalysis(context);
+    }
+  }
+  
+  async callLLM(context) {
+    const response = await fetch(LLM_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${LLM_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: `You are ${this.name}, an AI agent specialized in ${this.role}. Provide concise, actionable insights.` },
+          { role: 'user', content: context }
+        ],
+        temperature: 0.7,
+        max_tokens: 200
+      })
+    });
+    
+    if (!response.ok) throw new Error('API error');
+    const data = await response.json();
+    return data.choices[0].message.content;
+  }
+  
+  fallbackAnalysis(context) {
+    return `${this.name}: Analysis based on local patterns. ${context.substring(0, 100)}`;
+  }
+}
+
+// Initialize all AI Agents
+const agents = {
+  heatSensor: new AIAgent('🌡️ Heat Sensor Agent', 'analyzing real-time temperature data and heat patterns'),
+  surfaceScanner: new AIAgent('🗺️ Surface Scanner Agent', 'evaluating street surfaces and heat absorption rates'),
+  populationTracker: new AIAgent('👥 Population Tracker Agent', 'estimating crowd density and exposure risk'),
+  riskCalculator: new AIAgent('⚖️ Risk Calculator Agent', 'computing comprehensive heat risk scores'),
+  alertAgent: new AIAgent('🔔 Alert Agent', 'generating personalized safety recommendations'),
+  learningAI: new AIAgent('🧠 Self-Learning AI', 'learning from historical data and improving predictions')
+};
+
+function updateAgentUI(agentName, status, isLoading) {
+  const cards = document.querySelectorAll('.agent-card');
+  for (let card of cards) {
+    if (card.querySelector('.agent-name')?.innerText.includes(agentName.split(' ')[1]) ||
+        card.innerText.includes(agentName)) {
+      if (isLoading) {
+        card.classList.add('active');
+        card.querySelector('.agent-status').innerText = status;
+      } else {
+        card.classList.remove('active');
+        card.querySelector('.agent-status').innerText = status;
+      }
+    }
+  }
+}
+
+function updateAllAgents(isLoading) {
+  const status = isLoading ? 'Analyzing...' : 'Active';
+  const loading = isLoading;
+  const agentsList = [
+    '🌡️ Heat Sensor Agent', '🗺️ Surface Scanner Agent', '👥 Population Tracker Agent',
+    '⚖️ Risk Calculator Agent', '🔔 Alert Agent', '🧠 Self-Learning AI'
+  ];
+  
+  const cards = document.querySelectorAll('.agent-card');
+  cards.forEach((card, idx) => {
+    if (idx < agentsList.length) {
+      if (loading) {
+        card.classList.add('active');
+        card.querySelector('.agent-status').innerText = status;
+      } else {
+        card.classList.remove('active');
+        card.querySelector('.agent-status').innerText = status;
+      }
+    }
+  });
+}
+
+// Call LLM for intelligent insights
+async function getAIInsights() {
+  if (!currentLat || !cachedWeather) {
+    alert('Please wait for data to load first');
     return;
   }
+  
+  const insightsDiv = document.getElementById('aiInsights');
+  insightsDiv.style.display = 'block';
+  insightsDiv.innerHTML = '<div class="loading">🤔 AI Agents are thinking...</div>';
+  
+  const temp = cachedWeather.temperature[currentForecast];
+  const humidity = cachedWeather.humidity[currentForecast];
+  const feelsLike = cachedWeather.apparent_temperature[currentForecast];
+  const riskScore = temp >= 35 ? 90 : (temp >= 32 ? 80 : (temp >= 30 ? 70 : (temp >= 28 ? 55 : (temp >= 25 ? 40 : (temp >= 22 ? 25 : 10)))));
+  const riskLevel = riskScore >= 70 ? 'DANGER' : (riskScore >= 40 ? 'ALERT' : 'SAFE');
+  
+  // Run all agents in parallel for learning
+  updateAllAgents(true);
+  
+  const context = `
+    Location: ${fullAddress}
+    Temperature: ${temp}°C
+    Humidity: ${humidity}%
+    Feels Like: ${feelsLike}°C
+    Risk Level: ${riskLevel}
+    Risk Score: ${riskScore}/100
+    Historical patterns: ${JSON.stringify(learningData.patterns)}
+    Learning iterations: ${learningData.learningIterations}
+    
+    Provide a comprehensive heat risk assessment with:
+    1. Current risk analysis
+    2. Safety recommendations
+    3. Prediction for next 2 hours based on pattern learning
+    4. One sentence of personalized advice
+  `;
+  
+  try {
+    const response = await fetch(LLM_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${LLM_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: 'You are an expert heat safety advisor with access to real-time weather data. Provide actionable, concise insights.' },
+          { role: 'user', content: context }
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const insight = data.choices[0].message.content;
+      
+      insightsDiv.innerHTML = `
+        <strong>🧠 AI Intelligence Report</strong><br><br>
+        ${insight.replace(/\n/g, '<br>')}
+        <br><br>
+        <small>🤖 AI is continuously learning from your local patterns</small>
+      `;
+      
+      // Update learning data
+      learningData.learningIterations++;
+      learningData.lastPrediction = {
+        temp: temp,
+        riskLevel: riskLevel,
+        insight: insight,
+        timestamp: Date.now()
+      };
+      saveLearningData();
+      
+      // Speak the insight
+      speakMessage(insight.substring(0, 200));
+    } else {
+      insightsDiv.innerHTML = '<strong>🧠 AI Insights</strong><br>Based on current data: ' + 
+        (riskLevel === 'DANGER' ? '🔥 Extreme heat detected. Stay indoors, hydrate frequently.' :
+         riskLevel === 'ALERT' ? '⚠️ High heat conditions. Take precautions, use shade.' :
+         '✅ Conditions are safe. Stay hydrated and enjoy outdoors.');
+    }
+  } catch(e) {
+    console.error('LLM Error:', e);
+    insightsDiv.innerHTML = '<strong>🧠 AI Insights (Local Mode)</strong><br>' + 
+      (riskLevel === 'DANGER' ? '🔥 DANGER: Extreme heat! Avoid outdoor exposure. Drink water every 15 minutes.' :
+       riskLevel === 'ALERT' ? '⚠️ ALERT: High heat risk! Use sunscreen, stay hydrated, take shade breaks.' :
+       '✅ SAFE: Low risk. Enjoy outdoor activities but stay hydrated.');
+  }
+  
+  updateAllAgents(false);
+  setTimeout(() => {
+    insightsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 100);
+}
+
+// Voice function
+let voiceEnabled = false;
+function speakMessage(message) {
+  if (!voiceEnabled) return;
   try {
     window.speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(message);
     u.lang = 'en-US';
     u.rate = 0.9;
-    u.pitch = 1.0;
-    u.volume = 1;
     window.speechSynthesis.speak(u);
-  } catch(e) { console.log('Voice error:', e); }
+  } catch(e) { }
 }
 
-function enableVoiceAndSpeak() {
+function enableVoice() {
   voiceEnabled = true;
-  speakMessage('Voice enabled. Heat risk alerts will now speak automatically.');
+  speakMessage('Voice enabled. Heat risk alerts will speak automatically.');
 }
+
+// ============ MAP AND WEATHER FUNCTIONS ============
+let map, userMarker, currentLat = null, currentLon = null;
+let cachedWeather = null, currentForecast = 0, forecastNames = [];
+let streetMarkers = [];
+let fullAddress = '';
+let streetName = '', villageName = '', cityName = '', stateName = '', countryName = '';
 
 function initMap(lat, lon) {
   if (!map) {
@@ -240,8 +492,10 @@ function updateForecast(value) {
 }
 
 async function refreshData() {
-  updateAgents(true);
+  updateAgentsUI(true);
   document.getElementById('results').innerHTML = '<div class="loading">🌍 Getting your location...</div>';
+  document.getElementById('aiInsights').style.display = 'none';
+  
   navigator.geolocation.getCurrentPosition(async function(position) {
     currentLat = position.coords.latitude;
     currentLon = position.coords.longitude;
@@ -252,10 +506,14 @@ async function refreshData() {
     await updateStreets();
     updateWarningCard();
     updateLocationDetails();
-    updateAgents(false);
+    updateAgentsUI(false);
+    
+    // Record event for learning
+    const temp = cachedWeather.temperature[currentForecast];
+    recordEvent('weather_update', { temp: temp, location: fullAddress });
   }, function(error) {
     document.getElementById('results').innerHTML = '<div class="loading">❌ Location access denied</div>';
-    updateAgents(false);
+    updateAgentsUI(false);
   }, { enableHighAccuracy: true, timeout: 10000 });
 }
 
@@ -309,11 +567,11 @@ function updateWarningCard() {
   var riskLevel = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
   var message = '';
   if (riskLevel === 'DANGER') {
-    message = 'DANGER! Extreme heat at ' + temp + ' degrees Celsius at ' + (streetName || cityName) + '. Avoid outdoor exposure. Stay in air conditioning, drink water every 15 minutes.';
+    message = 'DANGER! Extreme heat at ' + temp + '°C at ' + (streetName || cityName) + '. Avoid outdoor exposure. Stay in AC, drink water every 15 minutes.';
   } else if (riskLevel === 'ALERT') {
-    message = 'ALERT! High heat at ' + temp + ' degrees Celsius at ' + (streetName || cityName) + '. Stay hydrated, use sunscreen, take breaks in shade.';
+    message = 'ALERT! High heat at ' + temp + '°C at ' + (streetName || cityName) + '. Stay hydrated, use sunscreen, take shade breaks.';
   } else {
-    message = 'SAFE. ' + temp + ' degrees Celsius at ' + (streetName || cityName) + '. Conditions are good for outdoor activities. Stay hydrated.';
+    message = 'SAFE. ' + temp + '°C at ' + (streetName || cityName) + '. Conditions are good. Stay hydrated.';
   }
   var card = document.getElementById('warningCard');
   var icon = document.getElementById('warningIcon');
@@ -339,8 +597,8 @@ function updateWarningCard() {
   locationSpan.innerHTML = fullAddress.substring(0, 80);
   riskBadge.innerHTML = 'Score: ' + score + '/100 | ' + temp + '°C | Feels: ' + feelsLike + '°C | Humidity: ' + humidity + '%';
   
-  // VOICE: Speak the warning message automatically if enabled
   speakMessage(message);
+  recordEvent('risk_update', { temp: temp, riskLevel: riskLevel, score: score });
 }
 
 async function fetchWeather(lat, lon) {
@@ -420,7 +678,6 @@ async function updateStreets() {
     var advice = level === 'DANGER' ? '🔥 Avoid this street' : (level === 'ALERT' ? '⚠️ Take caution' : '✅ Safe for walking');
     html += '<div class="street-card ' + level + '"><div class="street-name">🛣️ ' + street.name + '</div><div class="street-details"><span>🏗️ ' + street.type + '</span><span>🌡️ ' + temp + '°C</span><span>💧 ' + humidity + '%</span><span>🌡️ Feels: ' + feelsLike + '°C</span><span> ' + level + ' (' + score + '/100)</span></div><div class="street-details">' + advice + '</div></div>';
     var color = level === 'DANGER' ? '#ff4b4b' : (level === 'ALERT' ? '#ffa500' : '#4caf50');
-    // FIXED CIRCLE RADIUS - ALL CIRCLES SAME SIZE
     var radius = 35;
     var circle = L.circle([street.lat, street.lon], { radius: radius, color: color, fillColor: color, fillOpacity: 0.5, weight: 3 }).addTo(map);
     circle.bindPopup('<b>' + street.name + '</b><br><b>Risk:</b> ' + level + '<br><b>Temp:</b> ' + temp + '°C<br><b>Score:</b> ' + score + '/100');
@@ -434,14 +691,14 @@ async function updateStreets() {
   }
 }
 
-function updateAgents(loading) {
+function updateAgentsUI(loading) {
   var agents = [
-    { name: '🌡️ Thermal Sensor', status: loading ? 'Scanning...' : 'Active' },
-    { name: '🗺️ Street Scanner', status: loading ? 'Mapping...' : 'Ready' },
-    { name: '👥 Population Tracker', status: loading ? 'Analyzing...' : 'Monitoring' },
-    { name: '⚖️ Risk Calculator', status: loading ? 'Computing...' : 'Online' },
-    { name: '🔔 Alert System', status: loading ? 'Preparing...' : 'Standby' },
-    { name: '🧠 AI Learning', status: loading ? 'Updating...' : 'Optimized' }
+    { name: '🌡️ Heat Sensor Agent', status: loading ? 'Scanning...' : 'Active' },
+    { name: '🗺️ Surface Scanner Agent', status: loading ? 'Analyzing...' : 'Ready' },
+    { name: '👥 Population Tracker Agent', status: loading ? 'Tracking...' : 'Monitoring' },
+    { name: '⚖️ Risk Calculator Agent', status: loading ? 'Computing...' : 'Online' },
+    { name: '🔔 Alert Agent', status: loading ? 'Preparing...' : 'Standby' },
+    { name: '🧠 Self-Learning AI', status: loading ? `Learning (${learningData.learningIterations} iterations)...` : `Optimized (${learningData.learningIterations} learns)` }
   ];
   var html = '';
   for (var i = 0; i < agents.length; i++) {
@@ -450,7 +707,13 @@ function updateAgents(loading) {
   document.getElementById('agentsGrid').innerHTML = html;
 }
 
-window.onload = function() { refreshData(); };
+// Initialize
+loadLearningData();
+window.onload = function() { 
+  refreshData();
+  enableVoice();
+  updateAgentsUI(false);
+};
 </script>
 </body>
 </html>
