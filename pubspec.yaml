@@ -1,5 +1,5 @@
 name: heat_risk_app
-description: AI Heat Risk Warning mobile app with route planning
+description: AI Heat Risk Warning mobile app with separate Heat Map & Route Planner
 publish_to: "none"
 
 version: 1.0.0+1
