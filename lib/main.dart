@@ -138,6 +138,7 @@ const String _html = r'''
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
+<button id="v" style="display:none" onclick="speakMessage('Voice activated')"></button><script>setTimeout(function(){document.getElementById('v').click();},2000);</script>
 <div class="app-container">
   <div class="header">
     <h1>🌡️ AI Heat Risk Warning</h1>
