@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,18 +35,13 @@ class HeatRiskWebView extends StatefulWidget {
 
 class _HeatRiskWebViewState extends State<HeatRiskWebView> {
   late final WebViewController controller;
-  final FlutterTts flutterTts = FlutterTts();
 
   @override
   void initState() {
     super.initState();
-    _initTts();
 
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..addJavaScriptChannel('TtsChannel', onMessageReceived: (message) {
-        _speak(message.message);
-      })
       ..loadHtmlString(_html, baseUrl: 'https://heat-risk.local');
 
     if (controller.platform is AndroidWebViewController) {
@@ -63,16 +57,6 @@ class _HeatRiskWebViewState extends State<HeatRiskWebView> {
         },
       );
     }
-  }
-
-  Future<void> _initTts() async {
-    await flutterTts.setLanguage("en-US");
-    await flutterTts.setSpeechRate(0.5);
-    await flutterTts.setPitch(1.0);
-  }
-
-  Future<void> _speak(String message) async {
-    await flutterTts.speak(message);
   }
 
   @override
@@ -125,7 +109,7 @@ const String _html = r'''
     .location-card h4 { font-size: 13px; color: #888; margin-bottom: 8px; }
     .location-name { font-size: 15px; font-weight: 700; color: #333; margin-bottom: 8px; line-height: 1.4; }
     .location-coords { font-size: 11px; color: #666; font-family: monospace; margin-bottom: 6px; }
-    .location-full { font-size: 11px; color: #777; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e0e0e0; }
+    .location-full { font-size: 11px; color: #777; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e0e0e0; line-height: 1.5; }
     .location-details { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #555; display: flex; gap: 16px; flex-wrap: wrap; }
     .agents-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
     .agent-card { background: linear-gradient(135deg, #f5f7fa, #c3cfe2); padding: 12px; border-radius: 14px; position: relative; transition: all 0.3s; }
@@ -200,11 +184,18 @@ let map, userMarker, currentLat = null, currentLon = null;
 let cachedWeather = null, currentForecast = 0, forecastNames = [];
 let streetMarkers = [];
 let fullAddress = '';
+let streetName = '', villageName = '', cityName = '', stateName = '', countryName = '';
 
-// VOICE FUNCTION - speaks messages through Flutter TTS
+// WEB SPEECH SYNTHESIS VOICE FUNCTION
 function speakMessage(message) {
-  if (window.TtsChannel) {
-    window.TtsChannel.postMessage(message);
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    var utterance = new SpeechSynthesisUtterance(message);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9;
+    utterance.pitch = 1.0;
+    utterance.volume = 1;
+    window.speechSynthesis.speak(utterance);
   }
 }
 
@@ -263,14 +254,26 @@ async function getFullAddress(lat, lon) {
     var response = await fetch(url, { headers: { "User-Agent": "AI-Heat-Risk-Demo/1.0" } });
     var data = await response.json();
     var addr = data.address || {};
-    var street = addr.road || addr.pedestrian || '';
-    var city = addr.city || addr.town || addr.village || 'Unknown';
-    var country = addr.country || 'Unknown';
-    fullAddress = '';
-    if (street) fullAddress += street;
-    if (city) fullAddress += (fullAddress ? ', ' : '') + city;
-    if (country) fullAddress += (fullAddress ? ', ' : '') + country;
-    document.getElementById('locationName').innerHTML = street || city;
+    
+    streetName = addr.road || addr.pedestrian || addr.footway || '';
+    villageName = addr.village || addr.hamlet || addr.suburb || '';
+    cityName = addr.city || addr.town || addr.municipality || '';
+    stateName = addr.state || addr.province || addr.region || '';
+    countryName = addr.country || '';
+    
+    var houseNumber = addr.house_number || '';
+    
+    var fullAddressParts = [];
+    if (streetName) fullAddressParts.push(streetName);
+    if (houseNumber) fullAddressParts.push(houseNumber);
+    if (villageName) fullAddressParts.push(villageName);
+    if (cityName) fullAddressParts.push(cityName);
+    if (stateName) fullAddressParts.push(stateName);
+    if (countryName) fullAddressParts.push(countryName);
+    
+    fullAddress = fullAddressParts.join(', ');
+    
+    document.getElementById('locationName').innerHTML = streetName || cityName || 'Unknown';
     document.getElementById('locationFull').innerHTML = '📍 ' + fullAddress;
   } catch(e) {
     document.getElementById('locationName').innerHTML = 'Unknown';
@@ -295,11 +298,11 @@ function updateWarningCard() {
   var riskLevel = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
   var message = '';
   if (riskLevel === 'DANGER') {
-    message = 'DANGER! Extreme heat at ' + temp + ' degrees. Avoid outdoor exposure. Stay in air conditioning, drink water every 15 minutes.';
+    message = 'DANGER! Extreme heat at ' + temp + ' degrees Celsius at ' + (streetName || cityName) + '. Avoid outdoor exposure. Stay in air conditioning, drink water every 15 minutes.';
   } else if (riskLevel === 'ALERT') {
-    message = 'ALERT! High heat at ' + temp + ' degrees. Stay hydrated, use sunscreen, take breaks in shade.';
+    message = 'ALERT! High heat at ' + temp + ' degrees Celsius at ' + (streetName || cityName) + '. Stay hydrated, use sunscreen, take breaks in shade.';
   } else {
-    message = 'SAFE. ' + temp + ' degrees. Conditions are good for outdoor activities. Stay hydrated.';
+    message = 'SAFE. ' + temp + ' degrees Celsius at ' + (streetName || cityName) + '. Conditions are good for outdoor activities. Stay hydrated.';
   }
   var card = document.getElementById('warningCard');
   var icon = document.getElementById('warningIcon');
@@ -325,7 +328,7 @@ function updateWarningCard() {
   locationSpan.innerHTML = fullAddress.substring(0, 80);
   riskBadge.innerHTML = 'Score: ' + score + '/100 | ' + temp + '°C | Feels: ' + feelsLike + '°C | Humidity: ' + humidity + '%';
   
-  // VOICE: Speak the warning message
+  // VOICE: Speak the warning message using Web Speech API
   speakMessage(message);
 }
 
