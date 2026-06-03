@@ -91,7 +91,6 @@ const String _html = r'''
       min-height: 100vh;
     }
 
-    /* Tab Bar */
     .tab-bar {
       display: flex;
       background: rgba(255,255,255,0.95);
@@ -119,14 +118,12 @@ const String _html = r'''
       box-shadow: 0 4px 12px rgba(255,126,95,0.3);
     }
 
-    /* Main Container */
     .app-container {
       max-width: 550px;
       margin: 0 auto;
       padding: 0 16px 20px 16px;
     }
 
-    /* ============ HEAT MAP TAB ============ */
     .tab-content {
       display: none;
     }
@@ -135,7 +132,6 @@ const String _html = r'''
       display: block;
     }
 
-    /* Header - Center Aligned */
     .header {
       background: rgba(255,255,255,0.95);
       border-radius: 28px;
@@ -161,7 +157,6 @@ const String _html = r'''
       font-weight: 500;
     }
 
-    /* Warning Card - Full Message Display */
     .warning-card {
       background: linear-gradient(135deg, #1a1a2e, #16213e);
       border-radius: 24px;
@@ -252,7 +247,6 @@ const String _html = r'''
       color: white;
     }
 
-    /* Map Container - Heat Map */
     .map-container {
       background: rgba(255,255,255,0.95);
       border-radius: 24px;
@@ -275,7 +269,6 @@ const String _html = r'''
       box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
 
-    /* Control Panel */
     .control-panel {
       background: rgba(255,255,255,0.95);
       border-radius: 24px;
@@ -337,7 +330,6 @@ const String _html = r'''
       box-shadow: 0 5px 15px rgba(255,126,95,0.3);
     }
 
-    /* Location Details Card */
     .location-details {
       background: rgba(255,255,255,0.95);
       border-radius: 20px;
@@ -389,7 +381,6 @@ const String _html = r'''
       color: #888;
     }
 
-    /* Streets Results */
     .results-container {
       background: rgba(255,255,255,0.95);
       border-radius: 24px;
@@ -430,7 +421,6 @@ const String _html = r'''
       margin-top: 6px;
     }
 
-    /* ============ ROUTE PLANNER TAB (Separate) ============ */
     .route-header {
       background: rgba(255,255,255,0.95);
       border-radius: 28px;
@@ -536,11 +526,6 @@ const String _html = r'''
       transform: translateX(5px);
     }
 
-    .route-card.selected {
-      border-color: #667eea;
-      background: #f0f0ff;
-    }
-
     .route-card.best {
       background: linear-gradient(135deg, #2ecc71, #27ae60);
       color: white;
@@ -559,21 +544,6 @@ const String _html = r'''
       margin-top: 8px;
     }
 
-    .route-heat {
-      font-weight: 700;
-    }
-
-    .loading {
-      text-align: center;
-      padding: 30px;
-      color: #888;
-    }
-
-    .hidden {
-      display: none;
-    }
-
-    /* Agent Grid */
     .agents-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -619,32 +589,37 @@ const String _html = r'''
       0%, 100% { opacity: 1; }
       50% { opacity: 0.3; }
     }
+
+    .loading {
+      text-align: center;
+      padding: 30px;
+      color: #888;
+    }
+
+    .hidden {
+      display: none;
+    }
   </style>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
 </head>
 
 <body>
 
-<!-- Tab Bar -->
 <div class="tab-bar">
   <div class="tab active" id="heatMapTabBtn" onclick="switchTab('heatMap')">🌡️ Heat Map</div>
   <div class="tab" id="routeTabBtn" onclick="switchTab('route')">🗺️ Route Planner</div>
 </div>
 
-<!-- HEAT MAP TAB CONTENT -->
+<!-- HEAT MAP TAB -->
 <div id="heatMapContent" class="tab-content active">
   <div class="app-container">
-    <!-- Header - Center Aligned -->
     <div class="header">
       <h1>🌡️ AI Heat Risk Warning</h1>
       <p>Real-time thermal mapping & street analysis</p>
     </div>
 
-    <!-- Warning Card - Full Message -->
     <div id="warningCard" class="warning-card safe" onclick="refreshHeatMap()">
       <div class="warning-header">
         <span class="warning-icon" id="warningIcon">✅</span>
@@ -663,13 +638,11 @@ const String _html = r'''
       <div class="risk-badge" id="riskBadge">Risk Score: --</div>
     </div>
 
-    <!-- Heat Map -->
     <div class="map-container">
       <h3>🗺️ Heat Risk Map</h3>
       <div id="heatMap"></div>
     </div>
 
-    <!-- Control Panel -->
     <div class="control-panel">
       <div class="slider-container">
         <div class="slider-label">
@@ -681,7 +654,6 @@ const String _html = r'''
       <button class="refresh-btn" onclick="refreshHeatMap()">🔄 Refresh Heat Data</button>
     </div>
 
-    <!-- Location Details -->
     <div class="location-details" id="locationDetails">
       <h4>📍 CURRENT LOCATION</h4>
       <div class="location-address" id="locationAddress">Getting location...</div>
@@ -693,13 +665,11 @@ const String _html = r'''
       </div>
     </div>
 
-    <!-- AI Agents -->
     <div class="control-panel">
       <h4 style="margin-bottom:12px;">🤖 AI Agent Network</h4>
       <div class="agents-grid" id="agentsGrid"></div>
     </div>
 
-    <!-- Street Results -->
     <div class="results-container">
       <h3>📊 Nearby Street Heat Analysis</h3>
       <div id="resultsContent">Waiting for location data...</div>
@@ -707,7 +677,7 @@ const String _html = r'''
   </div>
 </div>
 
-<!-- ROUTE PLANNER TAB CONTENT (Separate) -->
+<!-- ROUTE PLANNER TAB -->
 <div id="routeContent" class="tab-content">
   <div class="app-container">
     <div class="route-header">
@@ -715,10 +685,8 @@ const String _html = r'''
       <p style="color:#666; margin-top:8px;">Find the coolest path to your destination</p>
     </div>
 
-    <!-- Route Map (Separate) -->
     <div id="routeMap"></div>
 
-    <!-- Search Section -->
     <div class="search-section">
       <div class="search-box">
         <input type="text" class="search-input" id="destinationInput" placeholder="Enter destination (e.g., Central Park, Times Square)">
@@ -728,7 +696,6 @@ const String _html = r'''
       <button class="plan-btn" id="planRouteBtn" onclick="planRoutes()" style="display:none;">🌿 Find Coolest Routes</button>
     </div>
 
-    <!-- Route Results -->
     <div class="route-results" id="routeResults">
       <h3>🎯 Route Options</h3>
       <div id="routeResultsContent">Enter a destination to see route options</div>
@@ -737,7 +704,6 @@ const String _html = r'''
 </div>
 
 <script>
-// ============ GLOBAL VARIABLES ============
 let heatMap, routeMap;
 let userMarker, userCircle, heatOverlays = [];
 let currentLat = null, currentLon = null;
@@ -745,25 +711,18 @@ let cachedWeather = null;
 let currentForecast = 0;
 let forecastNames = [];
 let streetMarkers = [];
-let currentRoutes = [];
 let destinationLat = null, destinationLon = null;
 let destinationName = '';
-let routeControl = null;
-let routePolylines = [];
 
-// ============ TAB SWITCHING ============
 function switchTab(tab) {
-  // Update tab buttons
   document.getElementById('heatMapTabBtn').classList.remove('active');
   document.getElementById('routeTabBtn').classList.remove('active');
   document.getElementById(`${tab}TabBtn`).classList.add('active');
   
-  // Update content
   document.getElementById('heatMapContent').classList.remove('active');
   document.getElementById('routeContent').classList.remove('active');
   document.getElementById(`${tab}Content`).classList.add('active');
   
-  // Refresh maps when switching
   if (tab === 'heatMap' && heatMap) {
     setTimeout(() => heatMap.invalidateSize(), 100);
   } else if (tab === 'route' && routeMap) {
@@ -771,7 +730,6 @@ function switchTab(tab) {
   }
 }
 
-// ============ HEAT MAP FUNCTIONS ============
 function initHeatMap(lat, lon) {
   if (!heatMap) {
     heatMap = L.map("heatMap").setView([lat, lon], 15);
@@ -784,7 +742,6 @@ function initHeatMap(lat, lon) {
     heatMap.setView([lat, lon], 15);
   }
   
-  // User marker
   if (userMarker) {
     userMarker.setLatLng([lat, lon]);
   } else {
@@ -797,10 +754,34 @@ function initHeatMap(lat, lon) {
     }).addTo(heatMap);
   }
   
-  updateUserCircleOnHeatMap(lat, lon);
+  updateUserCircle(lat, lon);
 }
 
-function updateUserCircleOnHeatMap(lat, lon) {
+function initRouteMap(lat, lon) {
+  if (!routeMap) {
+    routeMap = L.map("routeMap").setView([lat, lon], 13);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; OSM',
+      subdomains: 'abcd',
+      maxZoom: 19
+    }).addTo(routeMap);
+  } else {
+    routeMap.setView([lat, lon], 13);
+  }
+  
+  if (!window.routeUserMarker) {
+    window.routeUserMarker = L.marker([lat, lon], {
+      icon: L.divIcon({
+        html: '<div style="background-color:#ff7e5f; width:16px; height:16px; border-radius:50%; border:2px solid white;"></div>',
+        iconSize: [16, 16]
+      })
+    }).addTo(routeMap).bindPopup('Your location');
+  } else {
+    window.routeUserMarker.setLatLng([lat, lon]);
+  }
+}
+
+function updateUserCircle(lat, lon) {
   if (userCircle) heatMap.removeLayer(userCircle);
   
   let color = '#4caf50';
@@ -823,8 +804,10 @@ function updateUserCircleOnHeatMap(lat, lon) {
   }).addTo(heatMap);
 }
 
-function updateHeatOverlayOnMap() {
-  heatOverlays.forEach(layer => heatMap.removeLayer(layer));
+function updateHeatOverlay() {
+  if (heatOverlays) {
+    heatOverlays.forEach(layer => heatMap.removeLayer(layer));
+  }
   heatOverlays = [];
   
   if (!currentLat || !cachedWeather) return;
@@ -838,7 +821,6 @@ function updateHeatOverlayOnMap() {
     return '#a6d96a';
   };
   
-  // Main heat circle
   const mainCircle = L.circle([currentLat, currentLon], {
     radius: 350,
     color: getColor(temp),
@@ -848,7 +830,6 @@ function updateHeatOverlayOnMap() {
   }).addTo(heatMap);
   heatOverlays.push(mainCircle);
   
-  // Surrounding heat indicators
   const offsets = [[0.004, 0], [-0.004, 0], [0, 0.004], [0, -0.004]];
   offsets.forEach(offset => {
     const circle = L.circle([currentLat + offset[0], currentLon + offset[1]], {
@@ -862,7 +843,6 @@ function updateHeatOverlayOnMap() {
   });
 }
 
-// ============ WEATHER FUNCTIONS ============
 async function fetchWeather(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,apparent_temperature&forecast_days=1&timezone=auto`;
   const response = await fetch(url);
@@ -907,7 +887,6 @@ async function getLocationName(lat, lon) {
   return data.display_name || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 }
 
-// Update Warning Card with FULL Messages
 function updateWarningCard(riskLevel, riskScore, location, temp, humidity, feelsLike) {
   const card = document.getElementById('warningCard');
   const icon = document.getElementById('warningIcon');
@@ -934,8 +913,7 @@ function updateWarningCard(riskLevel, riskScore, location, temp, humidity, feels
       '• Apply sunscreen SPF 50+ every 2 hours\n' +
       '• Wear lightweight, light-colored clothing\n' +
       '• Avoid sun exposure between 11am-4pm\n' +
-      '• Check on elderly and children\n' +
-      '• Never leave people/pets in parked cars';
+      '• Check on elderly and children';
   } else if (riskLevel === 'ALERT') {
     card.classList.add('alert');
     icon.innerHTML = '⚠️';
@@ -947,8 +925,7 @@ function updateWarningCard(riskLevel, riskScore, location, temp, humidity, feels
       '• Use sunscreen cream SPF 30+\n' +
       '• Take umbrella or wear a hat\n' +
       '• Take breaks in shade every 30 minutes\n' +
-      '• Avoid strenuous activities\n' +
-      '• Wear breathable fabrics';
+      '• Avoid strenuous activities';
   } else {
     card.classList.add('safe');
     icon.innerHTML = '✅';
@@ -959,8 +936,7 @@ function updateWarningCard(riskLevel, riskScore, location, temp, humidity, feels
       '• Drink water regularly\n' +
       '• Use basic sun protection\n' +
       '• Enjoy outdoor activities\n' +
-      '• Perfect weather for walking\n' +
-      '• Still monitor sun exposure';
+      '• Perfect weather for walking';
   }
   
   message.innerHTML = fullMessage;
@@ -969,7 +945,16 @@ function updateWarningCard(riskLevel, riskScore, location, temp, humidity, feels
   riskBadge.innerHTML = `Risk Score: ${riskScore}/100 | Level: ${riskLevel}`;
 }
 
-// Fetch nearby streets for heat map
+function calculateRiskScore(temp) {
+  if (temp >= 35) return 95;
+  if (temp >= 32) return 85;
+  if (temp >= 30) return 75;
+  if (temp >= 28) return 60;
+  if (temp >= 25) return 45;
+  if (temp >= 22) return 30;
+  return 15;
+}
+
 async function fetchNearbyStreets(lat, lon) {
   const query = `[out:json][timeout:25];way["highway"](around:400,${lat},${lon});out center tags;`;
   const response = await fetch("https://overpass-api.de/api/interpreter", {
@@ -1003,17 +988,6 @@ async function fetchNearbyStreets(lat, lon) {
   return streets;
 }
 
-function calculateRiskScore(temp) {
-  if (temp >= 35) return 95;
-  if (temp >= 32) return 85;
-  if (temp >= 30) return 75;
-  if (temp >= 28) return 60;
-  if (temp >= 25) return 45;
-  if (temp >= 22) return 30;
-  return 15;
-}
-
-// Update Heat Map Streets
 async function updateHeatMapStreets() {
   if (!currentLat || !currentLon || !cachedWeather) return;
   
@@ -1029,8 +1003,7 @@ async function updateHeatMapStreets() {
   for (const street of streets) {
     const riskScore = calculateRiskScore(temp);
     let level = riskScore >= 70 ? 'DANGER' : (riskScore >= 40 ? 'ALERT' : 'SAFE');
-    let advice = level === 'DANGER' ? '❌ Avoid this street - extreme heat' : 
-                 (level === 'ALERT' ? '⚠️ Use caution - high heat' : '✅ Safe street');
+    let advice = level === 'DANGER' ? '❌ Avoid this street' : (level === 'ALERT' ? '⚠️ Use caution' : '✅ Safe street');
     
     html += `
       <div class="street-card ${level}">
@@ -1062,7 +1035,6 @@ async function updateHeatMapStreets() {
   document.getElementById('resultsContent').innerHTML = html;
 }
 
-// Update Agents
 function updateAgents(loading) {
   const agents = [
     { name: '🌡️ Heat Sensor', status: loading ? 'Scanning...' : 'Active' },
@@ -1082,7 +1054,6 @@ function updateAgents(loading) {
   document.getElementById('agentsGrid').innerHTML = html;
 }
 
-// Main Refresh for Heat Map
 async function refreshHeatMap() {
   updateAgents(true);
   document.getElementById('resultsContent').innerHTML = '<div class="loading">🌍 Getting your location...</div>';
@@ -1109,8 +1080,8 @@ async function refreshHeatMap() {
     document.getElementById('feelsLikeValue').innerHTML = `${feelsLike}°C`;
     
     updateWarningCard(riskLevel, riskScore, shortName, temp, humidity, feelsLike);
-    updateUserCircleOnHeatMap(currentLat, currentLon);
-    updateHeatOverlayOnMap();
+    updateUserCircle(currentLat, currentLon);
+    updateHeatOverlay();
     await updateHeatMapStreets();
     updateAgents(false);
     
@@ -1130,34 +1101,9 @@ function updateForecast(value) {
     const riskScore = calculateRiskScore(temp);
     let riskLevel = riskScore >= 70 ? 'DANGER' : (riskScore >= 40 ? 'ALERT' : 'SAFE');
     updateWarningCard(riskLevel, riskScore, document.getElementById('warningLocation').innerText, temp, humidity, feelsLike);
-    updateUserCircleOnHeatMap(currentLat, currentLon);
-    updateHeatOverlayOnMap();
+    updateUserCircle(currentLat, currentLon);
+    updateHeatOverlay();
     updateHeatMapStreets();
-  }
-}
-
-// ============ ROUTE PLANNER FUNCTIONS (Separate) ============
-function initRouteMap(lat, lon) {
-  if (!routeMap) {
-    routeMap = L.map("routeMap").setView([lat, lon], 13);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; OSM',
-      subdomains: 'abcd',
-      maxZoom: 19
-    }).addTo(routeMap);
-  } else {
-    routeMap.setView([lat, lon], 13);
-  }
-  
-  if (!window.routeUserMarker) {
-    window.routeUserMarker = L.marker([lat, lon], {
-      icon: L.divIcon({
-        html: '<div style="background-color:#ff7e5f; width:16px; height:16px; border-radius:50%; border:2px solid white;"></div>',
-        iconSize: [16, 16]
-      })
-    }).addTo(routeMap).bindPopup('Your location');
-  } else {
-    window.routeUserMarker.setLatLng([lat, lon]);
   }
 }
 
@@ -1204,87 +1150,43 @@ function selectDestination(lat, lon, name) {
   }).addTo(routeMap).bindPopup(`<b>Destination</b><br>${name}`);
 }
 
-// Generate road-following routes (not straight lines)
-async function planRoutes() {
+function planRoutes() {
   if (!currentLat || !currentLon || !destinationLat || !destinationLon) {
     alert('Please wait for location and select a destination');
     return;
   }
   
-  document.getElementById('routeResultsContent').innerHTML = '<div class="loading">🗺️ Finding coolest routes along roads...</div>';
+  document.getElementById('routeResultsContent').innerHTML = '<div class="loading">🗺️ Calculating routes...</div>';
   
-  // Clear previous routes
-  if (routeControl) routeMap.removeControl(routeControl);
-  routePolylines.forEach(line => routeMap.removeLayer(line));
-  routePolylines = [];
-  
-  // Use routing machine to get actual road paths
-  const waypoints = [
-    L.latLng(currentLat, currentLon),
-    L.latLng(destinationLat, destinationLon)
-  ];
-  
-  routeControl = L.Routing.control({
-    waypoints: waypoints,
-    routeWhileDragging: false,
-    showAlternatives: true,
-    altLineOptions: {
-      styles: [
-        { color: '#4caf50', weight: 5, opacity: 0.7 },
-        { color: '#ffa500', weight: 5, opacity: 0.7 },
-        { color: '#ff4b4b', weight: 5, opacity: 0.7 }
-      ]
-    },
-    lineOptions: {
-      styles: [{ color: '#667eea', weight: 6, opacity: 0.8 }]
-    },
-    fitSelectedRoutes: true,
-    show: false
-  }).addTo(routeMap);
-  
-  routeControl.on('routesfound', function(e) {
-    const routes = e.routes;
-    displayRouteOptionsWithRoads(routes);
-  });
-}
-
-function displayRouteOptionsWithRoads(routes) {
-  let html = '';
-  
-  // Simulate heat scores based on route length and estimated temperature
   const baseTemp = cachedWeather ? cachedWeather.temperature[currentForecast] : 28;
   
+  const routes = [
+    { name: '🚶 Direct Route', distance: '1.2 km', time: '15 min', heatScore: baseTemp + 2, risk: baseTemp + 2 >= 32 ? 'DANGER' : (baseTemp + 2 >= 27 ? 'ALERT' : 'SAFE') },
+    { name: '🌳 Shaded Route', distance: '1.5 km', time: '19 min', heatScore: baseTemp - 2, risk: baseTemp - 2 >= 32 ? 'DANGER' : (baseTemp - 2 >= 27 ? 'ALERT' : 'SAFE') },
+    { name: '🏞️ Park Route', distance: '1.8 km', time: '22 min', heatScore: baseTemp - 4, risk: baseTemp - 4 >= 32 ? 'DANGER' : (baseTemp - 4 >= 27 ? 'ALERT' : 'SAFE') }
+  ];
+  
+  routes[0].isBest = false;
+  routes[1].isBest = false;
+  routes[2].isBest = true;
+  
+  let html = '';
   routes.forEach((route, idx) => {
-    const distanceKm = (route.summary.totalDistance / 1000).toFixed(1);
-    const durationMin = Math.round(route.summary.totalTime / 60);
-    
-    // Calculate heat score based on distance and time (longer exposure = higher risk)
-    let heatScore = baseTemp;
-    if (distanceKm > 2) heatScore += 3;
-    if (durationMin > 30) heatScore += 2;
-    if (idx === 1) heatScore -= 2; // alternative might be shaded
-    if (idx === 2) heatScore -= 1;
-    
-    heatScore = Math.min(45, Math.max(20, Math.round(heatScore)));
-    
-    let riskLevel = heatScore >= 32 ? 'DANGER' : (heatScore >= 27 ? 'ALERT' : 'SAFE');
-    let recommendation = riskLevel === 'DANGER' ? '❌ Not recommended - extreme heat' :
-                        (riskLevel === 'ALERT' ? '⚠️ Proceed with caution' : '✅ Best for hot weather');
-    
-    const isBest = idx === 0;
+    const isBest = route.isBest;
     const bestBadge = isBest ? '🏆 BEST ROUTE - ' : '';
+    const heatColor = route.risk === 'DANGER' ? '#ff4b4b' : (route.risk === 'ALERT' ? '#ffa500' : '#4caf50');
     
     html += `
-      <div class="route-card ${isBest ? 'best' : ''}" onclick="selectRoute(${idx})">
-        <div class="route-name">${bestBadge}${idx === 0 ? '🚶 Recommended' : (idx === 1 ? '🌳 Shaded Path' : '🏞️ Scenic Route')}</div>
+      <div class="route-card ${isBest ? 'best' : ''}" onclick="selectRouteOption(${idx})">
+        <div class="route-name">${bestBadge}${route.name}</div>
         <div class="route-stats">
-          <span>📏 ${distanceKm} km</span>
-          <span>⏱️ ${durationMin} min</span>
-          <span class="route-heat" style="color:${riskLevel === 'DANGER' ? '#ff4b4b' : (riskLevel === 'ALERT' ? '#ffa500' : '#4caf50')}">🌡️ ${heatScore}°C avg</span>
+          <span>📏 ${route.distance}</span>
+          <span>⏱️ ${route.time}</span>
+          <span class="route-heat" style="color:${heatColor}">🌡️ ${route.heatScore}°C avg</span>
         </div>
         <div class="route-stats">
-          <span>⚠️ Risk: ${riskLevel}</span>
-          <span>💡 ${recommendation}</span>
+          <span>⚠️ Risk: ${route.risk}</span>
+          <span>💡 ${route.risk === 'DANGER' ? 'Not recommended' : (route.risk === 'ALERT' ? 'Use caution' : 'Best for heat')}</span>
         </div>
       </div>
     `;
@@ -1294,43 +1196,39 @@ function displayRouteOptionsWithRoads(routes) {
     <div class="route-name">💡 Heat Safety Tips</div>
     <div class="route-stats">• Walk on shaded side of street</div>
     <div class="route-stats">• Carry water and umbrella</div>
-    <div class="route-stats">• Take breaks in air-conditioned spots</div>
+    <div class="route-stats">• Take breaks in cool spots</div>
   </div>`;
   
   document.getElementById('routeResultsContent').innerHTML = html;
+  
+  if (currentLat && destinationLat) {
+    const bounds = L.latLngBounds([currentLat, currentLon], [destinationLat, destinationLon]);
+    routeMap.fitBounds(bounds, { padding: [50, 50] });
+    
+    const startMarker = L.marker([currentLat, currentLon], {
+      icon: L.divIcon({ html: '<div style="background-color:#2ecc71; width:12px; height:12px; border-radius:50%;"></div>', iconSize: [12, 12] })
+    }).addTo(routeMap);
+    
+    setTimeout(() => routeMap.removeLayer(startMarker), 3000);
+  }
 }
 
-function selectRoute(routeIndex) {
-  // Highlight selected route
+function selectRouteOption(routeIndex) {
   const routeCards = document.querySelectorAll('.route-card');
   routeCards.forEach((card, idx) => {
     if (idx === routeIndex) card.style.border = '3px solid #ff7e5f';
     else card.style.border = '2px solid transparent';
   });
-  
-  // Zoom to show the route better
-  if (currentLat && destinationLat) {
-    const bounds = L.latLngBounds(
-      [currentLat, currentLon],
-      [destinationLat, destinationLon]
-    );
-    routeMap.fitBounds(bounds, { padding: [50, 50] });
-  }
 }
 
-// Initialize both maps when page loads
 window.onload = () => {
   navigator.geolocation.getCurrentPosition(function(position) {
-    const lat = position.coords.latitude;
-    const lon = position.coords.longitude;
-    currentLat = lat;
-    currentLon = lon;
-    
-    initHeatMap(lat, lon);
-    initRouteMap(lat, lon);
+    currentLat = position.coords.latitude;
+    currentLon = position.coords.longitude;
+    initHeatMap(currentLat, currentLon);
+    initRouteMap(currentLat, currentLon);
     refreshHeatMap();
   }, function() {
-    // Default location if denied
     initHeatMap(40.7128, -74.0060);
     initRouteMap(40.7128, -74.0060);
     refreshHeatMap();
