@@ -138,8 +138,6 @@ const String _html = r'''
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
-<button class="refresh-btn" style="background:#2196F3; margin-top:5px;" onclick="speakMessage('Voice test successful')">🔊 Enable Voice</button>
-<button id="v" style="display:none" onclick="speakMessage('Voice activated')"></button><script>setTimeout(function(){document.getElementById('v').click();},2000);</script>
 <div class="app-container">
   <div class="header">
     <h1>🌡️ AI Heat Risk Warning</h1>
@@ -164,6 +162,7 @@ const String _html = r'''
       <input type="range" id="forecastSlider" min="0" max="12" value="0" oninput="updateForecast(this.value)">
     </div>
     <button class="refresh-btn" onclick="refreshData()">🔄 Refresh Data & Voice Alert</button>
+    <button class="refresh-btn" style="background:#2196F3; margin-top:5px;" onclick="enableVoiceAndSpeak()">🔊 Enable Voice (Tap Once)</button>
   </div>
   <div class="location-card">
     <h4>📍 YOUR LOCATION</h4>
@@ -187,9 +186,29 @@ let cachedWeather = null, currentForecast = 0, forecastNames = [];
 let streetMarkers = [];
 let fullAddress = '';
 let streetName = '', villageName = '', cityName = '', stateName = '', countryName = '';
+let voiceEnabled = false;
 
 // WEB SPEECH SYNTHESIS VOICE FUNCTION
-function speakMessage(message) { try { window.speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance(message); u.lang = 'en-US'; u.rate = 0.9; window.speechSynthesis.speak(u); } catch(e) { } }
+function speakMessage(message) {
+  if (!voiceEnabled) {
+    console.log('Voice not enabled yet');
+    return;
+  }
+  try {
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(message);
+    u.lang = 'en-US';
+    u.rate = 0.9;
+    u.pitch = 1.0;
+    u.volume = 1;
+    window.speechSynthesis.speak(u);
+  } catch(e) { console.log('Voice error:', e); }
+}
+
+function enableVoiceAndSpeak() {
+  voiceEnabled = true;
+  speakMessage('Voice enabled. Heat risk alerts will now speak automatically.');
+}
 
 function initMap(lat, lon) {
   if (!map) {
@@ -320,7 +339,7 @@ function updateWarningCard() {
   locationSpan.innerHTML = fullAddress.substring(0, 80);
   riskBadge.innerHTML = 'Score: ' + score + '/100 | ' + temp + '°C | Feels: ' + feelsLike + '°C | Humidity: ' + humidity + '%';
   
-  // VOICE: Speak the warning message using Web Speech API
+  // VOICE: Speak the warning message automatically if enabled
   speakMessage(message);
 }
 
@@ -401,7 +420,8 @@ async function updateStreets() {
     var advice = level === 'DANGER' ? '🔥 Avoid this street' : (level === 'ALERT' ? '⚠️ Take caution' : '✅ Safe for walking');
     html += '<div class="street-card ' + level + '"><div class="street-name">🛣️ ' + street.name + '</div><div class="street-details"><span>🏗️ ' + street.type + '</span><span>🌡️ ' + temp + '°C</span><span>💧 ' + humidity + '%</span><span>🌡️ Feels: ' + feelsLike + '°C</span><span> ' + level + ' (' + score + '/100)</span></div><div class="street-details">' + advice + '</div></div>';
     var color = level === 'DANGER' ? '#ff4b4b' : (level === 'ALERT' ? '#ffa500' : '#4caf50');
-    var radius = 40;
+    // FIXED CIRCLE RADIUS - ALL CIRCLES SAME SIZE
+    var radius = 35;
     var circle = L.circle([street.lat, street.lon], { radius: radius, color: color, fillColor: color, fillOpacity: 0.5, weight: 3 }).addTo(map);
     circle.bindPopup('<b>' + street.name + '</b><br><b>Risk:</b> ' + level + '<br><b>Temp:</b> ' + temp + '°C<br><b>Score:</b> ' + score + '/100');
     streetMarkers.push(circle);
@@ -431,14 +451,6 @@ function updateAgents(loading) {
 }
 
 window.onload = function() { refreshData(); };
-</script>
-<button id="initVoiceBtn" style="display:none;" onclick="speakMessage('Voice ready')"></button>
-<script>
-// Force voice initialization on page load
-setTimeout(function() {
-  var btn = document.getElementById('initVoiceBtn');
-  if (btn) btn.click();
-}, 1000);
 </script>
 </body>
 </html>
