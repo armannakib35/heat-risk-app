@@ -136,6 +136,7 @@ const String _html = r'''
   </style>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
 </head>
 <body>
 <div class="app-container">
@@ -180,7 +181,7 @@ const String _html = r'''
   </div>
 </div>
 <script>
-let map, userMarker, currentLat = null, currentLon = null;
+let map, userMarker, heatLayer, currentLat = null, currentLon = null;
 let cachedWeather = null, currentForecast = 0, forecastNames = [];
 let streetMarkers = [];
 let fullAddress = '';
@@ -188,23 +189,90 @@ let streetName = '', villageName = '', cityName = '', stateName = '', countryNam
 
 // DYNAMIC SURFACE TYPE DETECTION - Realistic heat calculations
 function getSurfaceHeatFactor(highwayType, surface) {
-  // Concrete/Asphalt roads - hottest
   if (highwayType === 'motorway' || highwayType === 'trunk' || highwayType === 'primary' || highwayType === 'secondary') {
     return { heatAdd: 3.5, name: 'Concrete/Asphalt', color: '#ff4b4b' };
   }
-  // Mixed urban roads
   if (highwayType === 'tertiary' || highwayType === 'residential' || highwayType === 'living_street') {
     return { heatAdd: 2.0, name: 'Mixed Urban', color: '#ffa500' };
   }
-  // Shaded/Green roads
   if (highwayType === 'service' || highwayType === 'unclassified') {
     return { heatAdd: 1.0, name: 'Service Road', color: '#ffcc00' };
   }
-  // Walking paths - coolest
   if (highwayType === 'footway' || highwayType === 'cycleway' || highwayType === 'path' || highwayType === 'pedestrian') {
     return { heatAdd: 0.5, name: 'Green/Shaded', color: '#4caf50' };
   }
   return { heatAdd: 1.5, name: 'Standard', color: '#ffa500' };
+}
+
+// Function to create heat map grid overlay
+function createHeatMapOverlay(streets, baseTemp) {
+  if (heatLayer) {
+    map.removeLayer(heatLayer);
+  }
+  
+  // Create heat points from street locations
+  var heatPoints = [];
+  for (var i = 0; i < streets.length; i++) {
+    var street = streets[i];
+    var surfaceInfo = getSurfaceHeatFactor(street.type, '');
+    var streetTemp = baseTemp + surfaceInfo.heatAdd;
+    
+    // Intensity based on temperature (0-1 scale)
+    var intensity = 0;
+    if (streetTemp >= 35) intensity = 1.0;
+    else if (streetTemp >= 32) intensity = 0.85;
+    else if (streetTemp >= 30) intensity = 0.7;
+    else if (streetTemp >= 28) intensity = 0.55;
+    else if (streetTemp >= 25) intensity = 0.4;
+    else if (streetTemp >= 22) intensity = 0.25;
+    else intensity = 0.1;
+    
+    heatPoints.push([street.lat, street.lon, intensity]);
+  }
+  
+  // Add user location as heat point
+  if (currentLat) {
+    var userTemp = baseTemp;
+    var userIntensity = userTemp >= 35 ? 1.0 : (userTemp >= 32 ? 0.85 : (userTemp >= 30 ? 0.7 : (userTemp >= 28 ? 0.55 : (userTemp >= 25 ? 0.4 : (userTemp >= 22 ? 0.25 : 0.1)))));
+    heatPoints.push([currentLat, currentLon, userIntensity + 0.2]);
+  }
+  
+  // Add surrounding grid points for better coverage
+  var bounds = map.getBounds();
+  var latStep = 0.003;
+  var lonStep = 0.003;
+  
+  for (var lat = bounds.getSouth(); lat <= bounds.getNorth(); lat += latStep) {
+    for (var lon = bounds.getWest(); lon <= bounds.getEast(); lon += lonStep) {
+      var distanceToStreet = 999;
+      for (var i = 0; i < streets.length; i++) {
+        var d = Math.sqrt(Math.pow(lat - streets[i].lat, 2) + Math.pow(lon - streets[i].lon, 2));
+        if (d < distanceToStreet) distanceToStreet = d;
+      }
+      if (distanceToStreet < 0.005) {
+        var gridTemp = baseTemp + (1 - distanceToStreet / 0.005) * 2;
+        var gridIntensity = gridTemp >= 35 ? 0.8 : (gridTemp >= 32 ? 0.7 : (gridTemp >= 30 ? 0.6 : (gridTemp >= 28 ? 0.5 : (gridTemp >= 25 ? 0.4 : 0.2))));
+        heatPoints.push([lat, lon, gridIntensity]);
+      }
+    }
+  }
+  
+  // Create heat map layer
+  heatLayer = L.heatLayer(heatPoints, {
+    radius: 35,
+    blur: 20,
+    maxZoom: 18,
+    minOpacity: 0.3,
+    gradient: {
+      0.2: '#4caf50',
+      0.4: '#8bc34a',
+      0.5: '#ffeb3b',
+      0.6: '#ff9800',
+      0.7: '#ff5722',
+      0.85: '#ff4b4b',
+      1.0: '#9d0208'
+    }
+  }).addTo(map);
 }
 
 function initMap(lat, lon) {
@@ -407,6 +475,9 @@ async function updateStreets() {
   for (var i = 0; i < streetMarkers.length; i++) { map.removeLayer(streetMarkers[i]); }
   streetMarkers = [];
   
+  // Create heat map overlay
+  createHeatMapOverlay(streets, baseTemp);
+  
   if (streets.length === 0) {
     document.getElementById('results').innerHTML = '<div class="loading">No named streets found nearby</div>';
     return;
@@ -416,19 +487,11 @@ async function updateStreets() {
   for (var s = 0; s < streets.length; s++) {
     var street = streets[s];
     
-    // DYNAMIC SURFACE TYPE DETECTION
     var surfaceInfo = getSurfaceHeatFactor(street.type, '');
-    
-    // Calculate UNIQUE temperature for this street based on road type
     var uniqueTemp = (baseTemp + surfaceInfo.heatAdd).toFixed(1);
-    
-    // Calculate UNIQUE humidity (hotter streets = lower humidity)
     var uniqueHumidity = Math.min(85, Math.max(30, baseHumidity - surfaceInfo.heatAdd * 3)).toFixed(0);
-    
-    // Calculate feels like temperature
     var uniqueFeelsLike = (parseFloat(uniqueTemp) + (100 - uniqueHumidity) / 25).toFixed(1);
     
-    // Calculate RISK SCORE based on unique temperature
     var tempNum = parseFloat(uniqueTemp);
     var score = 0;
     if (tempNum >= 38) score = 95;
@@ -440,7 +503,6 @@ async function updateStreets() {
     else if (tempNum >= 22) score = 25;
     else score = 10;
     
-    // Determine risk level based on actual temperature
     var level = '';
     var color = '';
     if (tempNum >= 32) {
@@ -475,15 +537,14 @@ async function updateStreets() {
       '<div class="street-details">' + advice + '</div>' +
       '</div>';
     
-    // Different circle radius based on risk level
-    var radius = level === 'DANGER' ? 45 : (level === 'ALERT' ? 35 : 25);
+    var radius = level === 'DANGER' ? 30 : (level === 'ALERT' ? 25 : 20);
     
     var circle = L.circle([street.lat, street.lon], { 
       radius: radius, 
       color: color, 
       fillColor: color, 
-      fillOpacity: 0.6, 
-      weight: 3 
+      fillOpacity: 0.5, 
+      weight: 2
     }).addTo(map);
     
     circle.bindPopup('<b>' + street.name + '</b><br>' +
