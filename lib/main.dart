@@ -133,12 +133,6 @@ const String _html = r'''
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
     ::-webkit-scrollbar-thumb { background: #ff7e5f; border-radius: 10px; }
-    
-    /* ADDED: Glow effect for circles - ONLY NEW CODE */
-    @keyframes circlePulse {
-      0%, 100% { opacity: 0.5; transform: scale(1); }
-      50% { opacity: 1; transform: scale(1.1); }
-    }
   </style>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -484,26 +478,13 @@ async function updateStreets() {
     // Different circle radius based on risk level
     var radius = level === 'DANGER' ? 45 : (level === 'ALERT' ? 35 : 25);
     
-    // ADDED: Glow effect animation - only change here
     var circle = L.circle([street.lat, street.lon], { 
       radius: radius, 
       color: color, 
       fillColor: color, 
       fillOpacity: 0.6, 
-      weight: 3,
-      className: 'glow-circle'
+      weight: 3 
     }).addTo(map);
-    
-    // ADDED: JavaScript animation for pulsing effect
-    var pulseInterval = setInterval(function() {
-      var currentOpacity = circle.options.fillOpacity;
-      var newOpacity = currentOpacity === 0.6 ? 0.9 : 0.6;
-      circle.setStyle({ fillOpacity: newOpacity });
-    }, 800);
-    
-    // Store interval to clear later
-    if (!window.pulseIntervals) window.pulseIntervals = [];
-    window.pulseIntervals.push(pulseInterval);
     
     circle.bindPopup('<b>' + street.name + '</b><br>' +
       '<b>Surface:</b> ' + surfaceInfo.name + '<br>' +
@@ -524,19 +505,6 @@ async function updateStreets() {
   }
 }
 
-// ADDED: Clear pulse intervals when refreshing data
-function clearPulseIntervals() {
-  if (window.pulseIntervals) {
-    for (var i = 0; i < window.pulseIntervals.length; i++) {
-      clearInterval(window.pulseIntervals[i]);
-    }
-    window.pulseIntervals = [];
-  }
-}
-
-// MODIFIED: Clear intervals when updating streets
-var originalClear = clearPulseIntervals;
-
 function updateAgents(loading) {
   var agents = [
     { name: '🌡️ Thermal Sensor', status: loading ? 'Scanning...' : 'Active' },
@@ -553,19 +521,7 @@ function updateAgents(loading) {
   document.getElementById('agentsGrid').innerHTML = html;
 }
 
-// Clear intervals on page unload
-window.addEventListener('beforeunload', function() {
-  if (window.pulseIntervals) {
-    for (var i = 0; i < window.pulseIntervals.length; i++) {
-      clearInterval(window.pulseIntervals[i]);
-    }
-  }
-});
-
-window.onload = function() { 
-  window.pulseIntervals = [];
-  refreshData(); 
-};
+window.onload = function() { refreshData(); };
 </script>
 </body>
 </html>
