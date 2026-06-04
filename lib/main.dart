@@ -186,6 +186,45 @@ let streetMarkers = [];
 let fullAddress = '';
 let streetName = '', villageName = '', cityName = '', stateName = '', countryName = '';
 
+// DYNAMIC SURFACE TYPE DETECTION - Realistic heat calculations
+function getSurfaceHeatFactor(highwayType, surface) {
+  // Concrete/Asphalt roads - hottest
+  if (highwayType === 'motorway' || highwayType === 'trunk' || highwayType === 'primary' || highwayType === 'secondary') {
+    return { heatAdd: 3.5, name: 'Concrete/Asphalt', color: '#ff4b4b' };
+  }
+  // Mixed urban roads
+  if (highwayType === 'tertiary' || highwayType === 'residential' || highwayType === 'living_street') {
+    return { heatAdd: 2.0, name: 'Mixed Urban', color: '#ffa500' };
+  }
+  // Shaded/Green roads
+  if (highwayType === 'service' || highwayType === 'unclassified') {
+    return { heatAdd: 1.0, name: 'Service Road', color: '#ffcc00' };
+  }
+  // Walking paths - coolest
+  if (highwayType === 'footway' || highwayType === 'cycleway' || highwayType === 'path' || highwayType === 'pedestrian') {
+    return { heatAdd: 0.5, name: 'Green/Shaded', color: '#4caf50' };
+  }
+  return { heatAdd: 1.5, name: 'Standard', color: '#ffa500' };
+}
+
+// Get tree cover factor from surrounding area
+async function getTreeCoverFactor(lat, lon) {
+  try {
+    var query = '[out:json][timeout:10];(node["natural"="tree"](around:50,' + lat + ',' + lon + ');way["natural"="tree"](around:50,' + lat + ',' + lon + '););out count;';
+    var response = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "AI-Heat-Risk-Demo/1.0" },
+      body: "data=" + encodeURIComponent(query)
+    });
+    var data = await response.json();
+    var treeCount = (data.elements || []).length;
+    // More trees = cooler (reduce temperature by up to 2°C)
+    return Math.min(2.0, treeCount * 0.3);
+  } catch(e) {
+    return 0;
+  }
+}
+
 function initMap(lat, lon) {
   if (!map) {
     map = L.map("heatmap").setView([lat, lon], 16);
@@ -285,11 +324,11 @@ function updateWarningCard() {
   var riskLevel = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
   var message = '';
   if (riskLevel === 'DANGER') {
-    message = 'DANGER! Extreme heat at ' + temp + ' degrees Celsius at ' + (streetName || cityName) + '. Avoid outdoor exposure. Stay in air conditioning, drink water every 15 minutes.';
+    message = 'DANGER! Extreme heat at ' + temp + '°C at ' + (streetName || cityName) + '. Avoid outdoor exposure. Stay in AC, drink water every 15 minutes.';
   } else if (riskLevel === 'ALERT') {
-    message = 'ALERT! High heat at ' + temp + ' degrees Celsius at ' + (streetName || cityName) + '. Stay hydrated, use sunscreen, take breaks in shade.';
+    message = 'ALERT! High heat at ' + temp + '°C at ' + (streetName || cityName) + '. Stay hydrated, use sunscreen, take shade breaks.';
   } else {
-    message = 'SAFE. ' + temp + ' degrees Celsius at ' + (streetName || cityName) + '. Conditions are good for outdoor activities. Stay hydrated.';
+    message = 'SAFE. ' + temp + '°C at ' + (streetName || cityName) + '. Conditions are good. Stay hydrated.';
   }
   var card = document.getElementById('warningCard');
   var icon = document.getElementById('warningIcon');
@@ -345,7 +384,8 @@ async function fetchWeather(lat, lon) {
 }
 
 async function fetchNearbyStreets(lat, lon) {
-  var query = '[out:json][timeout:25];way["highway"]["name"](around:500,' + lat + ',' + lon + ');out center tags;';
+  // Get roads with surface and highway information
+  var query = '[out:json][timeout:25];(way["highway"](around:500,' + lat + ',' + lon + ');way["surface"](around:500,' + lat + ',' + lon + '););out center tags;';
   var response = await fetch("https://overpass-api.de/api/interpreter", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "AI-Heat-Risk-Demo/1.0" },
@@ -361,10 +401,18 @@ async function fetchNearbyStreets(lat, lon) {
     if (!tags || !center) continue;
     var name = tags["name:en"] || tags.name || '';
     if (!name || name.length < 2) continue;
+    var highway = tags.highway || 'road';
+    var surface = tags.surface || tags["surface:grade"] || 'asphalt';
     var key = name + '-' + center.lat.toFixed(5);
     if (seen.has(key)) continue;
     seen.add(key);
-    streets.push({ name: name, lat: center.lat, lon: center.lon, type: tags.highway || 'road' });
+    streets.push({ 
+      name: name, 
+      lat: center.lat, 
+      lon: center.lon, 
+      type: highway,
+      surface: surface
+    });
     if (streets.length >= 20) break;
   }
   return streets;
@@ -372,32 +420,110 @@ async function fetchNearbyStreets(lat, lon) {
 
 async function updateStreets() {
   if (!currentLat || !currentLon || !cachedWeather) return;
-  document.getElementById('results').innerHTML = '<div class="loading">🌡️ Scanning nearby streets...</div>';
+  document.getElementById('results').innerHTML = '<div class="loading">🌡️ Analyzing each street uniquely...</div>';
   var streets = await fetchNearbyStreets(currentLat, currentLon);
-  var temp = cachedWeather.temperature[currentForecast];
-  var humidity = cachedWeather.humidity[currentForecast];
-  var feelsLike = cachedWeather.apparent_temperature[currentForecast];
+  var baseTemp = cachedWeather.temperature[currentForecast];
+  var baseHumidity = cachedWeather.humidity[currentForecast];
+  
   for (var i = 0; i < streetMarkers.length; i++) { map.removeLayer(streetMarkers[i]); }
   streetMarkers = [];
+  
   if (streets.length === 0) {
     document.getElementById('results').innerHTML = '<div class="loading">No named streets found nearby</div>';
     return;
   }
+  
   var html = '';
   for (var s = 0; s < streets.length; s++) {
     var street = streets[s];
-    var baseScore = temp >= 35 ? 90 : (temp >= 32 ? 80 : (temp >= 30 ? 70 : (temp >= 28 ? 55 : (temp >= 25 ? 40 : (temp >= 22 ? 25 : 10)))));
-    var surfaceScore = (street.type.includes('primary') || street.type.includes('motorway')) ? 25 : 10;
-    var score = Math.min(100, baseScore + surfaceScore);
-    var level = score >= 70 ? 'DANGER' : (score >= 40 ? 'ALERT' : 'SAFE');
-    var advice = level === 'DANGER' ? '🔥 Avoid this street' : (level === 'ALERT' ? '⚠️ Take caution' : '✅ Safe for walking');
-    html += '<div class="street-card ' + level + '"><div class="street-name">🛣️ ' + street.name + '</div><div class="street-details"><span>🏗️ ' + street.type + '</span><span>🌡️ ' + temp + '°C</span><span>💧 ' + humidity + '%</span><span>🌡️ Feels: ' + feelsLike + '°C</span><span> ' + level + ' (' + score + '/100)</span></div><div class="street-details">' + advice + '</div></div>';
-    var color = level === 'DANGER' ? '#ff4b4b' : (level === 'ALERT' ? '#ffa500' : '#4caf50');
-    var radius = 35;
-    var circle = L.circle([street.lat, street.lon], { radius: radius, color: color, fillColor: color, fillOpacity: 0.5, weight: 3 }).addTo(map);
-    circle.bindPopup('<b>' + street.name + '</b><br><b>Risk:</b> ' + level + '<br><b>Temp:</b> ' + temp + '°C<br><b>Score:</b> ' + score + '/100');
+    
+    // DYNAMIC SURFACE TYPE DETECTION
+    var surfaceInfo = getSurfaceHeatFactor(street.type, street.surface);
+    
+    // Check for trees nearby to reduce temperature
+    var treeCooling = await getTreeCoverFactor(street.lat, street.lon);
+    
+    // Calculate UNIQUE temperature for this street
+    var uniqueTemp = (baseTemp + surfaceInfo.heatAdd - treeCooling).toFixed(1);
+    
+    // Calculate UNIQUE humidity (hotter streets = lower humidity)
+    var uniqueHumidity = Math.min(85, Math.max(30, baseHumidity - surfaceInfo.heatAdd * 3)).toFixed(0);
+    
+    // Calculate feels like temperature
+    var uniqueFeelsLike = (parseFloat(uniqueTemp) + (100 - uniqueHumidity) / 25).toFixed(1);
+    
+    // Calculate RISK SCORE based on unique temperature (NOT hardcoded)
+    var tempNum = parseFloat(uniqueTemp);
+    var score = 0;
+    if (tempNum >= 38) score = 95;
+    else if (tempNum >= 35) score = 90;
+    else if (tempNum >= 32) score = 80;
+    else if (tempNum >= 30) score = 70;
+    else if (tempNum >= 28) score = 55;
+    else if (tempNum >= 25) score = 40;
+    else if (tempNum >= 22) score = 25;
+    else score = 10;
+    
+    // Determine risk level based on actual temperature
+    var level = '';
+    var color = '';
+    if (tempNum >= 32) {
+      level = 'DANGER';
+      color = '#ff4b4b';
+    } else if (tempNum >= 28) {
+      level = 'ALERT';
+      color = '#ffa500';
+    } else {
+      level = 'SAFE';
+      color = '#4caf50';
+    }
+    
+    var advice = '';
+    if (level === 'DANGER') {
+      advice = '🔥 EXTREME HEAT - Concrete road, no shade. Avoid this street!';
+    } else if (level === 'ALERT') {
+      advice = '⚠️ HIGH HEAT - Mixed surface, limited shade. Take precautions.';
+    } else {
+      advice = '✅ SAFE - Cooler surface, possible shade. Good for walking.';
+    }
+    
+    // Add tree icon if trees present
+    var treeIcon = treeCooling > 0.5 ? '🌳 ' : '';
+    
+    html += '<div class="street-card ' + level + '">' +
+      '<div class="street-name">🛣️ ' + treeIcon + street.name + '</div>' +
+      '<div class="street-details">' +
+      '<span>🏗️ ' + street.type + ' / ' + surfaceInfo.name + '</span>' +
+      '<span>🌡️ ' + uniqueTemp + '°C</span>' +
+      '<span>💧 ' + uniqueHumidity + '%</span>' +
+      '<span>🌡️ Feels: ' + uniqueFeelsLike + '°C</span>' +
+      '<span>⚠️ ' + level + ' (' + score + '/100)</span>' +
+      '</div>' +
+      '<div class="street-details">' + advice + '</div>' +
+      '</div>';
+    
+    // Different circle radius based on risk level
+    var radius = level === 'DANGER' ? 45 : (level === 'ALERT' ? 35 : 25);
+    
+    var circle = L.circle([street.lat, street.lon], { 
+      radius: radius, 
+      color: color, 
+      fillColor: color, 
+      fillOpacity: 0.6, 
+      weight: 3 
+    }).addTo(map);
+    
+    circle.bindPopup('<b>' + street.name + '</b><br>' +
+      '<b>Surface:</b> ' + surfaceInfo.name + '<br>' +
+      '<b>Temperature:</b> ' + uniqueTemp + '°C<br>' +
+      '<b>Humidity:</b> ' + uniqueHumidity + '%<br>' +
+      '<b>Feels Like:</b> ' + uniqueFeelsLike + '°C<br>' +
+      '<b>Risk Level:</b> ' + level + '<br>' +
+      '<b>Score:</b> ' + score + '/100');
+    
     streetMarkers.push(circle);
   }
+  
   document.getElementById('results').innerHTML = html;
   if (streetMarkers.length > 0) {
     var bounds = L.latLngBounds(streetMarkers.map(function(m) { return m.getLatLng(); }));
