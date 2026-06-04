@@ -133,6 +133,16 @@ const String _html = r'''
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
     ::-webkit-scrollbar-thumb { background: #ff7e5f; border-radius: 10px; }
+    
+    /* CSS for Glowing Pulsing Circles */
+    .glow-circle {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.7; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.15); }
+      100% { opacity: 0.7; transform: scale(1); }
+    }
   </style>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -205,6 +215,48 @@ function getSurfaceHeatFactor(highwayType, surface) {
     return { heatAdd: 0.5, name: 'Green/Shaded', color: '#4caf50' };
   }
   return { heatAdd: 1.5, name: 'Standard', color: '#ffa500' };
+}
+
+// Function to create glowing pulsing circle
+function createGlowCircle(lat, lon, radius, color, riskLevel, popupHtml) {
+  // Create main circle with glow effect
+  var circle = L.circle([lat, lon], {
+    radius: radius,
+    color: color,
+    fillColor: color,
+    fillOpacity: 0.4,
+    weight: 4,
+    opacity: 0.9,
+    className: 'glow-circle'
+  }).addTo(map);
+  
+  // Add pulsing animation using JavaScript
+  var pulseStep = 0;
+  var pulseInterval = setInterval(function() {
+    pulseStep++;
+    var newRadius = radius + Math.sin(pulseStep * 0.1) * 8;
+    circle.setRadius(newRadius);
+    var newOpacity = 0.4 + Math.sin(pulseStep * 0.1) * 0.2;
+    circle.setStyle({ fillOpacity: newOpacity, opacity: 0.7 + Math.sin(pulseStep * 0.1) * 0.2 });
+  }, 100);
+  
+  // Store interval to clear later
+  if (!window.pulseIntervals) window.pulseIntervals = [];
+  window.pulseIntervals.push(pulseInterval);
+  
+  circle.bindPopup(popupHtml);
+  
+  // Add outer glow ring
+  var glowRing = L.circle([lat, lon], {
+    radius: radius + 15,
+    color: color,
+    fillColor: color,
+    fillOpacity: 0.15,
+    weight: 1,
+    opacity: 0.5
+  }).addTo(map);
+  
+  return { circle: circle, glowRing: glowRing, interval: pulseInterval };
 }
 
 function initMap(lat, lon) {
@@ -404,7 +456,18 @@ async function updateStreets() {
   var baseTemp = cachedWeather.temperature[currentForecast];
   var baseHumidity = cachedWeather.humidity[currentForecast];
   
-  for (var i = 0; i < streetMarkers.length; i++) { map.removeLayer(streetMarkers[i]); }
+  // Clear previous pulse intervals
+  if (window.pulseIntervals) {
+    for (var i = 0; i < window.pulseIntervals.length; i++) {
+      clearInterval(window.pulseIntervals[i]);
+    }
+  }
+  window.pulseIntervals = [];
+  
+  for (var i = 0; i < streetMarkers.length; i++) { 
+    if (streetMarkers[i].circle) map.removeLayer(streetMarkers[i].circle);
+    if (streetMarkers[i].glowRing) map.removeLayer(streetMarkers[i].glowRing);
+  }
   streetMarkers = [];
   
   if (streets.length === 0) {
@@ -443,15 +506,19 @@ async function updateStreets() {
     // Determine risk level based on actual temperature
     var level = '';
     var color = '';
+    var pulseSpeed = '';
     if (tempNum >= 32) {
       level = 'DANGER';
       color = '#ff4b4b';
+      pulseSpeed = 'fast';
     } else if (tempNum >= 28) {
       level = 'ALERT';
       color = '#ffa500';
+      pulseSpeed = 'medium';
     } else {
       level = 'SAFE';
       color = '#4caf50';
+      pulseSpeed = 'slow';
     }
     
     var advice = '';
@@ -476,30 +543,24 @@ async function updateStreets() {
       '</div>';
     
     // Different circle radius based on risk level
-    var radius = level === 'DANGER' ? 45 : (level === 'ALERT' ? 35 : 25);
+    var radius = level === 'DANGER' ? 50 : (level === 'ALERT' ? 40 : 30);
     
-    var circle = L.circle([street.lat, street.lon], { 
-      radius: radius, 
-      color: color, 
-      fillColor: color, 
-      fillOpacity: 0.6, 
-      weight: 3 
-    }).addTo(map);
-    
-    circle.bindPopup('<b>' + street.name + '</b><br>' +
+    var popupHtml = '<b>' + street.name + '</b><br>' +
       '<b>Surface:</b> ' + surfaceInfo.name + '<br>' +
       '<b>Temperature:</b> ' + uniqueTemp + '°C<br>' +
       '<b>Humidity:</b> ' + uniqueHumidity + '%<br>' +
       '<b>Feels Like:</b> ' + uniqueFeelsLike + '°C<br>' +
       '<b>Risk Level:</b> ' + level + '<br>' +
-      '<b>Score:</b> ' + score + '/100');
+      '<b>Score:</b> ' + score + '/100';
     
-    streetMarkers.push(circle);
+    // CREATE GLOWING PULSING CIRCLE
+    var circleObj = createGlowCircle(street.lat, street.lon, radius, color, level, popupHtml);
+    streetMarkers.push(circleObj);
   }
   
   document.getElementById('results').innerHTML = html;
   if (streetMarkers.length > 0) {
-    var bounds = L.latLngBounds(streetMarkers.map(function(m) { return m.getLatLng(); }));
+    var bounds = L.latLngBounds(streetMarkers.map(function(m) { return m.circle.getLatLng(); }));
     bounds.extend([currentLat, currentLon]);
     map.fitBounds(bounds, { padding: [50, 50] });
   }
