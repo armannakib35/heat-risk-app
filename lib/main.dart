@@ -207,24 +207,6 @@ function getSurfaceHeatFactor(highwayType, surface) {
   return { heatAdd: 1.5, name: 'Standard', color: '#ffa500' };
 }
 
-// Get tree cover factor from surrounding area
-async function getTreeCoverFactor(lat, lon) {
-  try {
-    var query = '[out:json][timeout:10];(node["natural"="tree"](around:50,' + lat + ',' + lon + ');way["natural"="tree"](around:50,' + lat + ',' + lon + '););out count;';
-    var response = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "AI-Heat-Risk-Demo/1.0" },
-      body: "data=" + encodeURIComponent(query)
-    });
-    var data = await response.json();
-    var treeCount = (data.elements || []).length;
-    // More trees = cooler (reduce temperature by up to 2°C)
-    return Math.min(2.0, treeCount * 0.3);
-  } catch(e) {
-    return 0;
-  }
-}
-
 function initMap(lat, lon) {
   if (!map) {
     map = L.map("heatmap").setView([lat, lon], 16);
@@ -384,8 +366,7 @@ async function fetchWeather(lat, lon) {
 }
 
 async function fetchNearbyStreets(lat, lon) {
-  // Get roads with surface and highway information
-  var query = '[out:json][timeout:25];(way["highway"](around:500,' + lat + ',' + lon + ');way["surface"](around:500,' + lat + ',' + lon + '););out center tags;';
+  var query = '[out:json][timeout:25];way["highway"](around:500,' + lat + ',' + lon + ');out center tags;';
   var response = await fetch("https://overpass-api.de/api/interpreter", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "AI-Heat-Risk-Demo/1.0" },
@@ -402,7 +383,6 @@ async function fetchNearbyStreets(lat, lon) {
     var name = tags["name:en"] || tags.name || '';
     if (!name || name.length < 2) continue;
     var highway = tags.highway || 'road';
-    var surface = tags.surface || tags["surface:grade"] || 'asphalt';
     var key = name + '-' + center.lat.toFixed(5);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -410,8 +390,7 @@ async function fetchNearbyStreets(lat, lon) {
       name: name, 
       lat: center.lat, 
       lon: center.lon, 
-      type: highway,
-      surface: surface
+      type: highway
     });
     if (streets.length >= 20) break;
   }
@@ -420,7 +399,7 @@ async function fetchNearbyStreets(lat, lon) {
 
 async function updateStreets() {
   if (!currentLat || !currentLon || !cachedWeather) return;
-  document.getElementById('results').innerHTML = '<div class="loading">🌡️ Analyzing each street uniquely...</div>';
+  document.getElementById('results').innerHTML = '<div class="loading">🌡️ Analyzing nearby streets...</div>';
   var streets = await fetchNearbyStreets(currentLat, currentLon);
   var baseTemp = cachedWeather.temperature[currentForecast];
   var baseHumidity = cachedWeather.humidity[currentForecast];
@@ -438,13 +417,10 @@ async function updateStreets() {
     var street = streets[s];
     
     // DYNAMIC SURFACE TYPE DETECTION
-    var surfaceInfo = getSurfaceHeatFactor(street.type, street.surface);
+    var surfaceInfo = getSurfaceHeatFactor(street.type, '');
     
-    // Check for trees nearby to reduce temperature
-    var treeCooling = await getTreeCoverFactor(street.lat, street.lon);
-    
-    // Calculate UNIQUE temperature for this street
-    var uniqueTemp = (baseTemp + surfaceInfo.heatAdd - treeCooling).toFixed(1);
+    // Calculate UNIQUE temperature for this street based on road type
+    var uniqueTemp = (baseTemp + surfaceInfo.heatAdd).toFixed(1);
     
     // Calculate UNIQUE humidity (hotter streets = lower humidity)
     var uniqueHumidity = Math.min(85, Math.max(30, baseHumidity - surfaceInfo.heatAdd * 3)).toFixed(0);
@@ -452,7 +428,7 @@ async function updateStreets() {
     // Calculate feels like temperature
     var uniqueFeelsLike = (parseFloat(uniqueTemp) + (100 - uniqueHumidity) / 25).toFixed(1);
     
-    // Calculate RISK SCORE based on unique temperature (NOT hardcoded)
+    // Calculate RISK SCORE based on unique temperature
     var tempNum = parseFloat(uniqueTemp);
     var score = 0;
     if (tempNum >= 38) score = 95;
@@ -480,18 +456,15 @@ async function updateStreets() {
     
     var advice = '';
     if (level === 'DANGER') {
-      advice = '🔥 EXTREME HEAT - Concrete road, no shade. Avoid this street!';
+      advice = '🔥 EXTREME HEAT - Concrete/Asphalt road. Avoid this street!';
     } else if (level === 'ALERT') {
-      advice = '⚠️ HIGH HEAT - Mixed surface, limited shade. Take precautions.';
+      advice = '⚠️ HIGH HEAT - Mixed surface. Take precautions.';
     } else {
-      advice = '✅ SAFE - Cooler surface, possible shade. Good for walking.';
+      advice = '✅ SAFE - Cooler surface/possible shade. Good for walking.';
     }
     
-    // Add tree icon if trees present
-    var treeIcon = treeCooling > 0.5 ? '🌳 ' : '';
-    
     html += '<div class="street-card ' + level + '">' +
-      '<div class="street-name">🛣️ ' + treeIcon + street.name + '</div>' +
+      '<div class="street-name">🛣️ ' + street.name + '</div>' +
       '<div class="street-details">' +
       '<span>🏗️ ' + street.type + ' / ' + surfaceInfo.name + '</span>' +
       '<span>🌡️ ' + uniqueTemp + '°C</span>' +
